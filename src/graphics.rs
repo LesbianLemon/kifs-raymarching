@@ -1,7 +1,8 @@
 use wgpu::util::DeviceExt;
 use winit::{
     dpi::PhysicalSize,
-    event::*,
+    error::EventLoopError,
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowBuilder},
@@ -70,7 +71,7 @@ impl<'a> GraphicsState<'a> {
                     required_features: options.required_features,
                     required_limits: options.required_limits.clone(),
                     label: None,
-                    memory_hints: Default::default(),
+                    memory_hints: wgpu::MemoryHints::default(),
                 },
                 None,
             )
@@ -80,7 +81,7 @@ impl<'a> GraphicsState<'a> {
 
     fn create_size_uniform_buffer(
         device: &wgpu::Device,
-        size: &PhysicalSize<u32>,
+        size: PhysicalSize<u32>,
     ) -> (SizeUniform, wgpu::Buffer) {
         let size_uniform = SizeUniform {
             width: size.width,
@@ -130,7 +131,7 @@ impl<'a> GraphicsState<'a> {
     fn create_config(
         surface: &wgpu::Surface<'a>,
         adapter: &wgpu::Adapter,
-        size: &PhysicalSize<u32>,
+        size: PhysicalSize<u32>,
     ) -> wgpu::SurfaceConfiguration {
         let surface_caps = surface.get_capabilities(adapter);
 
@@ -222,11 +223,11 @@ impl<'a> GraphicsState<'a> {
         let (device, queue) = GraphicsState::create_device_and_queue(&adapter, &options).await;
 
         let (size_uniform, size_uniform_buffer) =
-            GraphicsState::create_size_uniform_buffer(&device, &size);
+            GraphicsState::create_size_uniform_buffer(&device, size);
         let (size_bind_group_layout, size_bind_group) =
             GraphicsState::create_size_uniform_bind(&device, &size_uniform_buffer);
 
-        let config = GraphicsState::create_config(&surface, &adapter, &size);
+        let config = GraphicsState::create_config(&surface, &adapter, size);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
@@ -278,7 +279,7 @@ impl<'a> GraphicsState<'a> {
         }
     }
 
-    fn input(&mut self, event: &WindowEvent) -> bool {
+    fn input(&mut self, _event: &WindowEvent) -> bool {
         false
     }
 
@@ -332,67 +333,63 @@ impl<'a> GraphicsState<'a> {
     }
 }
 
-pub async fn run(options: GraphicsStateOptions) {
+pub async fn run(options: GraphicsStateOptions) -> Result<(), EventLoopError> {
     env_logger::init();
-    let event_loop = EventLoop::new().unwrap();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let event_loop = EventLoop::new()?;
+    let window = WindowBuilder::new().build(&event_loop)?;
 
     let mut state = GraphicsState::new(&window, options).await;
     let surface_configured = true;
 
-    event_loop
-        .run(move |event, control_flow| match event {
-            Event::WindowEvent {
-                ref event,
-                window_id,
-            } if window_id == state.window().id() => {
-                if !state.input(event) {
-                    match event {
-                        WindowEvent::CloseRequested
-                        | WindowEvent::KeyboardInput {
-                            event:
-                                KeyEvent {
-                                    state: ElementState::Pressed,
-                                    physical_key: PhysicalKey::Code(KeyCode::Escape),
-                                    ..
-                                },
-                            ..
-                        } => control_flow.exit(),
-                        WindowEvent::Resized(physical_size) => {
-                            state.resize(*physical_size);
-                        }
-                        WindowEvent::RedrawRequested => {
-                            state.window().request_redraw();
-
-                            if !surface_configured {
-                                return;
-                            }
-
-                            state.update();
-                            match state.render() {
-                                Ok(_) => {}
-
-                                Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                                    state.resize(state.size)
-                                }
-
-                                Err(
-                                    wgpu::SurfaceError::OutOfMemory | wgpu::SurfaceError::Other,
-                                ) => {
-                                    log::error!("OutOfMemory");
-                                    control_flow.exit();
-                                }
-
-                                Err(wgpu::SurfaceError::Timeout) => {
-                                    log::warn!("Surface timeout")
-                                }
-                            }
-                        }
-                        _ => {}
+    event_loop.run(move |event, control_flow| match event {
+        Event::WindowEvent {
+            ref event,
+            window_id,
+        } if window_id == state.window().id() => {
+            if !state.input(event) {
+                match event {
+                    WindowEvent::CloseRequested
+                    | WindowEvent::KeyboardInput {
+                        event:
+                            KeyEvent {
+                                state: ElementState::Pressed,
+                                physical_key: PhysicalKey::Code(KeyCode::Escape),
+                                ..
+                            },
+                        ..
+                    } => control_flow.exit(),
+                    WindowEvent::Resized(physical_size) => {
+                        state.resize(*physical_size);
                     }
+                    WindowEvent::RedrawRequested => {
+                        state.window().request_redraw();
+
+                        if !surface_configured {
+                            return;
+                        }
+
+                        state.update();
+                        match state.render() {
+                            Ok(()) => {}
+
+                            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                                state.resize(state.size);
+                            }
+
+                            Err(wgpu::SurfaceError::OutOfMemory | wgpu::SurfaceError::Other) => {
+                                log::error!("OutOfMemory");
+                                control_flow.exit();
+                            }
+
+                            Err(wgpu::SurfaceError::Timeout) => {
+                                log::warn!("Surface timeout");
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
-            _ => {}
-        })
-        .unwrap();
+        }
+        _ => {}
+    })
 }
