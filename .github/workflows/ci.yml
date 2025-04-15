@@ -1,0 +1,50 @@
+name: Rust Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  format_check:
+    name: Check Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
+      - name: Run cargo clippy
+        run: cargo clippy -- -D warnings
+  
+  build_and_test:
+    name: Build Source and Test
+    needs: format_check
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Run cargo build
+        run: cargo build --verbose
+      - name: Run cargo tests
+        run: cargo test --verbose
