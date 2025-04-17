@@ -1,14 +1,16 @@
-use kifs_raymarching::graphics;
+use kifs_raymarching::render;
 
-async fn start() {
-    let options = graphics::GraphicsStateOptions::default();
+fn run() {
+    env_logger::init();
 
-    match graphics::run(options).await {
-        Ok(()) => println!("Exiting program..."),
+    let options = render::RenderStateOptions::default();
+
+    match render::run(options) {
+        Ok(()) => log::info!("Event loop finished. Exiting program..."),
         Err(err) => log::error!("{err}"),
     }
 }
 
 fn main() {
-    pollster::block_on(start());
+    run();
 }
