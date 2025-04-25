@@ -138,7 +138,7 @@ impl GraphicState {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../shader.wgsl").into()),
         });
 
         let render_pipeline =
@@ -169,8 +169,10 @@ impl GraphicState {
         );
     }
 
-    pub fn prepare_render_pass(&self, render_pass: &mut wgpu::RenderPass) {
+    pub fn render(&self, render_pass: &mut wgpu::RenderPass) {
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, &self.size_bind_group, &[]);
+
+        render_pass.draw(0..3, 0..1);
     }
 }

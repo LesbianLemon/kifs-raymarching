@@ -1,17 +1,10 @@
-use egui_wgpu::wgpu;
+use egui_wgpu::{ScreenDescriptor, wgpu};
 
 use std::sync::Arc;
-use winit::{
-    application::ApplicationHandler,
-    dpi::PhysicalSize,
-    error::EventLoopError,
-    event::{ElementState, KeyEvent, WindowEvent},
-    event_loop::EventLoop,
-    keyboard::{KeyCode, PhysicalKey},
-    window::Window,
-};
+use winit::{dpi::PhysicalSize, event::WindowEvent, window::Window};
 
-use crate::graphics::GraphicState;
+pub mod graphics;
+pub mod gui;
 
 #[derive(Default)]
 pub struct RenderStateOptions {
@@ -20,13 +13,15 @@ pub struct RenderStateOptions {
     required_limits: wgpu::Limits,
 }
 
-struct RenderState {
+pub struct RenderState {
+    window: Arc<Window>,
     size: PhysicalSize<u32>,
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    graphic_state: GraphicState,
+    graphic_state: graphics::GraphicState,
+    gui_state: gui::GuiState,
 }
 
 impl RenderState {
@@ -92,7 +87,7 @@ impl RenderState {
         }
     }
 
-    async fn new(window: &Arc<Window>, options: &RenderStateOptions) -> Self {
+    pub async fn new(window: Arc<Window>, options: &RenderStateOptions) -> Self {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -100,32 +95,39 @@ impl RenderState {
             ..Default::default()
         });
 
-        let surface = instance.create_surface(Arc::clone(window)).unwrap();
+        let surface = instance.create_surface(window.clone()).unwrap();
 
         let adapter = RenderState::create_adapter(&instance, &surface, options).await;
         let (device, queue) = RenderState::create_device_and_queue(&adapter, options).await;
 
         let config = RenderState::create_config(&surface, &adapter, size);
 
-        let graphic_state = GraphicState::new(window, &device, &config);
-        // let gui_state = GuiState::new(window);
+        let graphic_state = graphics::GraphicState::new(&window, &device, &config);
+        let gui_state = gui::GuiState::new(&window, &device, wgpu::TextureFormat::Rgba8UnormSrgb);
+
+        surface.configure(&device, &config);
 
         Self {
+            window,
             size,
             surface,
             device,
             queue,
             config,
             graphic_state,
-            // gui_state,
+            gui_state,
         }
     }
 
-    fn size(&self) -> PhysicalSize<u32> {
+    pub fn window(&self) -> &Window {
+        &self.window
+    }
+
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.size
     }
 
-    fn resize(&mut self, new_size: PhysicalSize<u32>) {
+    pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
             self.config.width = new_size.width;
@@ -137,19 +139,29 @@ impl RenderState {
         }
     }
 
-    fn input(&mut self, _event: &WindowEvent) -> bool {
-        false
+    // Processes the input event and schedules a redraw if needed
+    pub fn input(&mut self, event: &WindowEvent) {
+        let response = self.gui_state.input(&self.window, event);
+
+        if response.repaint {
+            self.window.request_redraw();
+        }
     }
 
-    fn update(&mut self) {
+    pub fn update(&mut self) {
         // todo!()
     }
 
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let output = self.surface.get_current_texture()?;
-        let view = output
+    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        let surface_texture = self.surface.get_current_texture()?;
+        let view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let screen_descriptor = ScreenDescriptor {
+            size_in_pixels: [self.size.width, self.size.height],
+            pixels_per_point: self.window.scale_factor() as f32,
+        };
 
         let mut encoder = self
             .device
@@ -157,6 +169,15 @@ impl RenderState {
                 label: Some("Render Encoder"),
             });
 
+        self.gui_state.prerender(
+            &self.window,
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &screen_descriptor,
+        );
+
+        // Drawing and rendering happens here
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -178,115 +199,15 @@ impl RenderState {
                 timestamp_writes: None,
             });
 
-            self.graphic_state.prepare_render_pass(&mut render_pass);
-
-            render_pass.draw(0..3, 0..1);
+            self.graphic_state.render(&mut render_pass);
+            self.gui_state.render(render_pass, &screen_descriptor);
         }
 
+        // Submit the queue to the GPU
         self.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
+        self.window.pre_present_notify();
+        surface_texture.present();
 
         Ok(())
     }
-}
-
-#[derive(Default)]
-struct Application {
-    window: Option<Arc<Window>>,
-    state: Option<RenderState>,
-    state_options: RenderStateOptions,
-}
-
-impl Application {
-    fn set_options(&mut self, options: RenderStateOptions) {
-        self.state_options = options;
-    }
-}
-
-impl ApplicationHandler for Application {
-    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        if self.window.is_none() {
-            let new_window = event_loop
-                .create_window(Window::default_attributes())
-                .unwrap();
-            let window = self.window.insert(Arc::new(new_window));
-
-            let new_state = pollster::block_on(RenderState::new(window, &self.state_options));
-            let _ = self.state.insert(new_state);
-        }
-    }
-
-    fn window_event(
-        &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        window_id: winit::window::WindowId,
-        event: WindowEvent,
-    ) {
-        match self {
-            Self {
-                window: Some(window),
-                state: Some(state),
-                ..
-            } => {
-                if window_id != window.id() {
-                    return;
-                }
-
-                if state.input(&event) {
-                    return;
-                }
-
-                match event {
-                    WindowEvent::CloseRequested
-                    | WindowEvent::KeyboardInput {
-                        event:
-                            KeyEvent {
-                                state: ElementState::Pressed,
-                                physical_key: PhysicalKey::Code(KeyCode::Escape),
-                                ..
-                            },
-                        ..
-                    } => {
-                        // To avoid a segfault, force Rust to drop values before closing
-                        self.window = None;
-                        self.state = None;
-
-                        event_loop.exit();
-                    }
-                    WindowEvent::Resized(physical_size) => state.resize(physical_size),
-                    WindowEvent::RedrawRequested => {
-                        window.request_redraw();
-
-                        state.update();
-                        match state.render() {
-                            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                                state.resize(state.size());
-                            }
-                            Err(wgpu::SurfaceError::OutOfMemory | wgpu::SurfaceError::Other) => {
-                                log::error!("OutOfMemory");
-                                event_loop.exit();
-                            }
-                            Err(wgpu::SurfaceError::Timeout) => {
-                                log::warn!("Surface timed out");
-                            }
-                            _ => {}
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            _ => {
-                log::warn!("Cannot process window event with unconfigured state and window");
-            }
-        }
-    }
-}
-
-pub fn run(options: RenderStateOptions) -> Result<(), EventLoopError> {
-    let event_loop = EventLoop::new()?;
-
-    let mut app = Application::default();
-    app.set_options(options);
-
-    event_loop.run_app(&mut app)
 }
