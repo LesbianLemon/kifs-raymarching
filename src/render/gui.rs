@@ -1,9 +1,51 @@
 use egui_wgpu::{Renderer, ScreenDescriptor, wgpu};
 
-use egui::{ClippedPrimitive, Context, TexturesDelta, ViewportId};
+use egui::{ClippedPrimitive, Color32, Context, TexturesDelta, Ui, ViewportId};
 use egui_winit::{EventResponse, State};
 use winit::{event::WindowEvent, window::Window};
 
+struct Gui;
+
+impl Gui {
+    fn generate(ui: &mut Ui) {
+        ui.label("Teheme");
+        let mut theme_preference = ui.ctx().options(|opt| opt.theme_preference);
+        theme_preference.radio_buttons(ui);
+        ui.ctx().set_theme(theme_preference);
+        ui.end_row();
+
+        ui.label("Label!");
+        ui.end_row();
+
+        ui.label("Butpn");
+        if ui.button("Button!").clicked() {
+            println!("boom!")
+        }
+        ui.end_row();
+
+        ui.label("Checkboxxxxxxxx");
+        ui.checkbox(&mut true, "Checkbox");
+        ui.end_row();
+
+        ui.label("combosx");
+        egui::ComboBox::from_label("Take your pick")
+        .selected_text(format!("{:?}", 0))
+        .show_ui(ui, |ui| {
+            ui.selectable_value(&mut 0, 0, "First");
+            ui.selectable_value(&mut 0, 1, "Second");
+            ui.selectable_value(&mut 0, 2, "Third");
+        });
+        ui.end_row();
+
+        ui.label("Slajdr");
+        ui.add(egui::Slider::new(&mut 180.0, 0.0..=360.0).suffix("°"));
+        ui.end_row();
+
+        ui.label("Kulur");
+        ui.color_edit_button_srgba(&mut Color32::LIGHT_YELLOW);
+        ui.end_row();
+    }
+}
 pub struct GuiState {
     state: State,
     renderer: Renderer,
@@ -71,21 +113,15 @@ impl GuiState {
             .vscroll(true)
             .default_open(false)
             .show(self.state.egui_ctx(), |ui| {
-                ui.label("Label!");
-
-                if ui.button("Button!").clicked() {
-                    println!("boom!")
-                }
-
-                ui.separator();
-                ui.horizontal(|ui| {
-                    ui.label(format!(
-                        "Pixels per point: {}",
-                        self.state.egui_ctx().pixels_per_point()
-                    ));
-                });
+                egui::Grid::new("my_grid")
+                .num_columns(2)
+                .spacing([40.0, 4.0])
+                .striped(true)
+                .show(ui, |ui| {
+                    Gui::generate(ui);
+                });                
             });
-
+        
         let full_output = self.state.egui_ctx().end_pass();
         self.state
             .handle_platform_output(window, full_output.platform_output);
