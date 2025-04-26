@@ -66,9 +66,9 @@ impl RenderState {
         surface_format: &wgpu::TextureFormat,
         size: PhysicalSize<u32>,
     ) -> wgpu::SurfaceConfiguration {
-            wgpu::SurfaceConfiguration {
+        wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format.clone(),
+            format: *surface_format,
             width: size.width,
             height: size.height,
             present_mode: surface_capabilities.present_modes[0],
@@ -104,7 +104,8 @@ impl RenderState {
         let surface_capabilities = surface.get_capabilities(&adapter);
 
         let surface_format = RenderState::get_surface_format(&surface_capabilities);
-        let config = RenderState::create_surface_config(&surface_capabilities, &surface_format, size);
+        let config =
+            RenderState::create_surface_config(&surface_capabilities, &surface_format, size);
 
         let graphic_state = graphics::GraphicState::new(&window, &device, &config);
         let gui_state = gui::GuiState::new(&window, &device, surface_format);
