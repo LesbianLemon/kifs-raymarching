@@ -79,7 +79,7 @@ impl ApplicationHandler for Application {
 
             let new_state =
                 pollster::block_on(RenderState::new(window.clone(), &self.state_options));
-            let _ = self.state.insert(new_state);
+            self.state = Some(new_state);
 
             window.request_redraw();
         }

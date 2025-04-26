@@ -61,30 +61,31 @@ impl RenderState {
             .unwrap()
     }
 
-    fn create_config(
-        surface: &wgpu::Surface<'static>,
-        adapter: &wgpu::Adapter,
+    fn create_surface_config(
+        surface_capabilities: &wgpu::SurfaceCapabilities,
+        surface_format: &wgpu::TextureFormat,
         size: PhysicalSize<u32>,
     ) -> wgpu::SurfaceConfiguration {
-        let surface_caps = surface.get_capabilities(adapter);
+            wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: surface_format.clone(),
+            width: size.width,
+            height: size.height,
+            present_mode: surface_capabilities.present_modes[0],
+            alpha_mode: surface_capabilities.alpha_modes[0],
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        }
+    }
 
-        let surface_format = surface_caps
+    fn get_surface_format(surface_capabilities: &wgpu::SurfaceCapabilities) -> wgpu::TextureFormat {
+        // surface_capabilities vector is guaranteed to contain Bgra8UnormSrgb by the library
+        surface_capabilities
             .formats
             .iter()
             .find(|f| f.is_srgb())
             .copied()
-            .unwrap_or(surface_caps.formats[0]);
-
-        wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
-            width: size.width,
-            height: size.height,
-            present_mode: surface_caps.present_modes[0],
-            alpha_mode: surface_caps.alpha_modes[0],
-            view_formats: vec![],
-            desired_maximum_frame_latency: 2,
-        }
+            .unwrap_or(surface_capabilities.formats[0])
     }
 
     pub async fn new(window: Arc<Window>, options: &RenderStateOptions) -> Self {
@@ -100,11 +101,15 @@ impl RenderState {
         let adapter = RenderState::create_adapter(&instance, &surface, options).await;
         let (device, queue) = RenderState::create_device_and_queue(&adapter, options).await;
 
-        let config = RenderState::create_config(&surface, &adapter, size);
+        let surface_capabilities = surface.get_capabilities(&adapter);
+
+        let surface_format = RenderState::get_surface_format(&surface_capabilities);
+        let config = RenderState::create_surface_config(&surface_capabilities, &surface_format, size);
 
         let graphic_state = graphics::GraphicState::new(&window, &device, &config);
-        let gui_state = gui::GuiState::new(&window, &device, wgpu::TextureFormat::Rgba8UnormSrgb);
+        let gui_state = gui::GuiState::new(&window, &device, surface_format);
 
+        // Configure the surface for the first time
         surface.configure(&device, &config);
 
         Self {
