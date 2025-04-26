@@ -5,10 +5,14 @@ on:
     branches:
       - main
       - develop
+      - develop-alja
+      - develop-andrej
   pull_request:
     branches:
       - main
       - develop
+      - develop-alja
+      - develop-andrej
 
 env:
   CARGO_TERM_COLOR: always

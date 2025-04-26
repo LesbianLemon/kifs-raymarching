@@ -46,7 +46,7 @@ impl Application {
     }
 
     fn render(&mut self) -> Result<(), UrecoverableError> {
-        if let Some(state) = &mut self.state {
+        if let Some(state) = self.state.as_mut() {
             state.update();
 
             match state.render() {
@@ -119,7 +119,6 @@ impl ApplicationHandler for Application {
                 }
                 WindowEvent::Resized(new_size) => state.resize(new_size),
                 WindowEvent::RedrawRequested => {
-                    state.window().request_redraw();
                     self.render().unwrap_or_else(|_e| event_loop.exit());
                 }
                 _ => {}
