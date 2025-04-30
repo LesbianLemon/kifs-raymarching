@@ -1,75 +1,21 @@
 use egui_wgpu::wgpu;
 
-use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, window::Window};
 
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct SizeUniform {
-    width: u32,
-    height: u32,
-}
-
-impl SizeUniform {
-    pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height }
-    }
-}
+use crate::math::{Radians, Vector2};
+use crate::uniform::{
+    CameraUniformData, CameraUniformDataDescriptor, SizeUniformData, SizeUniformDataDescriptor,
+    Uniform,
+};
 
 pub struct GraphicState {
-    size_uniform: SizeUniform,
-    size_uniform_buffer: wgpu::Buffer,
-    size_bind_group: wgpu::BindGroup,
+    size_uniform: Uniform<SizeUniformData>,
+    camera_uniform: Uniform<CameraUniformData>,
+    camera_rotatable: bool,
     render_pipeline: wgpu::RenderPipeline,
 }
 
 impl GraphicState {
-    fn create_size_uniform_buffer(
-        device: &wgpu::Device,
-        size: PhysicalSize<u32>,
-    ) -> (SizeUniform, wgpu::Buffer) {
-        let size_uniform = SizeUniform::new(size.width, size.height);
-
-        let size_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Size Uniform Buffer"),
-            contents: bytemuck::cast_slice(&[size_uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        (size_uniform, size_uniform_buffer)
-    }
-
-    fn create_size_uniform_bind(
-        device: &wgpu::Device,
-        size_uniform_buffer: &wgpu::Buffer,
-    ) -> (wgpu::BindGroupLayout, wgpu::BindGroup) {
-        let size_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("size_bind_group_layout"),
-            });
-
-        let size_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &size_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: size_uniform_buffer.as_entire_binding(),
-            }],
-            label: Some("size_bind_group"),
-        });
-
-        (size_bind_group_layout, size_bind_group)
-    }
-
     fn create_render_pipeline(
         device: &wgpu::Device,
         bind_group_layouts: &[&wgpu::BindGroupLayout],
@@ -78,13 +24,13 @@ impl GraphicState {
     ) -> wgpu::RenderPipeline {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
+                label: Some("render_pipeline_layout"),
                 bind_group_layouts,
                 push_constant_ranges: &[],
             });
 
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
+            label: Some("render_pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: shader,
@@ -132,46 +78,91 @@ impl GraphicState {
     ) -> Self {
         let size = window.inner_size();
 
-        let (size_uniform, size_uniform_buffer) = Self::create_size_uniform_buffer(device, size);
-        let (size_bind_group_layout, size_bind_group) =
-            Self::create_size_uniform_bind(device, &size_uniform_buffer);
+        let size_uniform = Uniform::<SizeUniformData>::create_uniform(
+            device,
+            SizeUniformDataDescriptor::from(size),
+            Some("size_uniform"),
+        );
+        let camera_uniform = Uniform::<CameraUniformData>::create_uniform(
+            device,
+            CameraUniformDataDescriptor {
+                origin_distance: 15.,
+                min_distance: 5.,
+                angles: Vector2(Radians::from_degrees(-45.), Radians::from_degrees(20.)),
+            },
+            Some("camera_uniform"),
+        );
+        let camera_rotatable = false;
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
+            label: Some("raymarching_shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../shader.wgsl").into()),
         });
 
-        let render_pipeline =
-            Self::create_render_pipeline(device, &[&size_bind_group_layout], config, &shader);
+        let render_pipeline = Self::create_render_pipeline(
+            device,
+            &[
+                size_uniform.bind_group_layout(),
+                camera_uniform.bind_group_layout(),
+            ],
+            config,
+            &shader,
+        );
 
         Self {
             size_uniform,
-            size_uniform_buffer,
-            size_bind_group,
+            camera_uniform,
+            camera_rotatable,
             render_pipeline,
         }
     }
 
-    pub fn size_uniform(&self) -> (&SizeUniform, &wgpu::Buffer, &wgpu::BindGroup) {
-        (
-            &self.size_uniform,
-            &self.size_uniform_buffer,
-            &self.size_bind_group,
-        )
+    pub fn update_size(&mut self, queue: &wgpu::Queue, new_size: PhysicalSize<u32>) {
+        self.size_uniform
+            .update_uniform(SizeUniformDataDescriptor::from(new_size), queue);
     }
 
-    pub fn update_size_uniform(&self, queue: &wgpu::Queue, new_size: PhysicalSize<u32>) {
-        let size_uniform = SizeUniform::new(new_size.width, new_size.height);
-        queue.write_buffer(
-            &self.size_uniform_buffer,
-            0,
-            bytemuck::cast_slice(&[size_uniform]),
+    pub fn zoom_camera(&mut self, queue: &wgpu::Queue, distance: f32) {
+        let current_distance = self.camera_uniform.origin_distance();
+        let min_distance = self.camera_uniform.min_distance();
+
+        self.camera_uniform.update_uniform(
+            CameraUniformDataDescriptor {
+                origin_distance: f32::max(min_distance, current_distance - distance),
+                ..self.camera_uniform.data_descriptor()
+            },
+            queue,
+        );
+    }
+
+    pub fn enable_camera_rotation(&mut self) {
+        self.camera_rotatable = true;
+    }
+
+    pub fn disable_camera_rotation(&mut self) {
+        self.camera_rotatable = false;
+    }
+
+    pub fn is_camera_rotatable(&self) -> bool {
+        self.camera_rotatable
+    }
+
+    pub fn rotate_camera(&mut self, queue: &wgpu::Queue, delta_phi: Radians, delta_theta: Radians) {
+        let current_angles = self.camera_uniform.angles();
+
+        self.camera_uniform.update_uniform(
+            CameraUniformDataDescriptor {
+                angles: current_angles + Vector2(delta_phi, delta_theta),
+                ..self.camera_uniform.data_descriptor()
+            },
+            queue,
         );
     }
 
     pub fn render(&self, render_pass: &mut wgpu::RenderPass) {
         render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(0, &self.size_bind_group, &[]);
+        render_pass.set_bind_group(0, self.size_uniform.bind_group(), &[]);
+        render_pass.set_bind_group(1, self.camera_uniform.bind_group(), &[]);
 
         render_pass.draw(0..3, 0..1);
     }

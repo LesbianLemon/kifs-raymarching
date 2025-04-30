@@ -7,6 +7,17 @@ struct SizeUniform {
 @binding(0)
 var<uniform> size: SizeUniform;
 
+struct CameraUniform {
+    origin_distance: f32,
+    min_distance: f32,
+    angles: vec2<f32>,
+    matrix: mat3x3<f32>,
+}
+
+@group(1)
+@binding(0)
+var<uniform> camera: CameraUniform;
+
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
 }
@@ -33,8 +44,12 @@ fn sphere_SDF(sphere: Sphere, position: vec3<f32>) -> f32 {
     return distance(sphere.center, position) - sphere.radius;
 }
 
+fn axes_SDF(thickness: f32, position: vec3<f32>) -> f32 {
+    return min(length(position.yz), min(length(position.xz), length(position.xy))) - thickness;
+}
+
 fn scene_SDF(position: vec3<f32>) -> f32 {
-    let sphere = Sphere(vec3<f32>(0., 0., 10.), 5.);
+    let sphere = Sphere(vec3<f32>(0., 0., 0.), 5.);
 
     return sphere_SDF(sphere, position);
 }
@@ -60,21 +75,29 @@ struct Ray {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let origin = vec3<f32>(0., 0., -1.);
+    let camera_matrix = camera.matrix;
+    let origin = camera.origin_distance * camera_matrix * vec3<f32>(1., 0., 0.);
 
-    let center_translate = 0.5*vec2<f32>(f32(size.width), f32(size.height));
-    let direction = normalize(vec3<f32>((in.clip_position.xy - center_translate)/f32(size.height), 0.) - origin);
+    let translated_position = in.clip_position.xy - 0.5 * vec2<f32>(f32(size.width), f32(size.height));
+    let uv_position = 2. * translated_position / f32(size.height);
+    let direction = normalize(camera_matrix * vec3<f32>(-1., uv_position.x, -uv_position.y));
 
     var origin_distance: f32;
     var position = origin;
     for (var i = 0; i < 100 && origin_distance < 1000.; i++) {
-        let distance = scene_SDF(position);
+        let scene_distance = scene_SDF(position);
+        let axis_distance = axes_SDF(0.05, position);
+        let distance = min(scene_distance, axis_distance);
 
-        if distance < 0.001 {
+        if scene_distance < 0.001 {
             let normal = get_normal(position);
-            let diffuse = 0.1 + 0.9*max(dot(normal, vec3<f32>(1., 0., -1.)), 0.);
+            let diffuse = 0.1 + 0.9 * max(dot(normal, vec3<f32>(1., 1., 1.)), 0.);
 
             return vec4<f32>(diffuse, diffuse, diffuse, 1.);
+        }
+
+        if axis_distance < 0.001 {
+            return vec4<f32>(0.5, 0.5, 0.5, 0.25);
         }
 
         origin_distance += distance;

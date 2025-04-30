@@ -1,7 +1,13 @@
 use egui_wgpu::{ScreenDescriptor, wgpu};
 
 use std::sync::Arc;
-use winit::{dpi::PhysicalSize, event::WindowEvent, window::Window};
+use winit::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    event::{DeviceEvent, ElementState, MouseButton, MouseScrollDelta, WindowEvent},
+    window::Window,
+};
+
+use crate::math::Radians;
 
 pub mod graphics;
 pub mod gui;
@@ -98,14 +104,13 @@ impl RenderState {
 
         let surface = instance.create_surface(window.clone()).unwrap();
 
-        let adapter = RenderState::create_adapter(&instance, &surface, options).await;
-        let (device, queue) = RenderState::create_device_and_queue(&adapter, options).await;
+        let adapter = Self::create_adapter(&instance, &surface, options).await;
+        let (device, queue) = Self::create_device_and_queue(&adapter, options).await;
 
         let surface_capabilities = surface.get_capabilities(&adapter);
 
-        let surface_format = RenderState::get_surface_format(&surface_capabilities);
-        let config =
-            RenderState::create_surface_config(&surface_capabilities, &surface_format, size);
+        let surface_format = Self::get_surface_format(&surface_capabilities);
+        let config = Self::create_surface_config(&surface_capabilities, &surface_format, size);
 
         let graphic_state = graphics::GraphicState::new(&window, &device, &config);
         let gui_state = gui::GuiState::new(&window, &device, surface_format);
@@ -140,22 +145,51 @@ impl RenderState {
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
 
-            self.graphic_state
-                .update_size_uniform(&self.queue, new_size);
+            self.graphic_state.update_size(&self.queue, new_size);
         }
     }
 
-    // Processes the input event and schedules a redraw if needed
-    pub fn input(&mut self, event: &WindowEvent) {
-        let response = self.gui_state.input(&self.window, event);
-
-        if response.repaint {
+    pub fn window_event(&mut self, event: &WindowEvent) {
+        let response = self.gui_state.window_event(&self.window, event);
+        if self.gui_state.wants_pointer_input() || response.consumed {
             self.window.request_redraw();
+            return;
+        }
+
+        match event {
+            WindowEvent::MouseInput {
+                state,
+                button: MouseButton::Left,
+                ..
+            } => match state {
+                ElementState::Pressed => self.graphic_state.enable_camera_rotation(),
+                ElementState::Released => self.graphic_state.disable_camera_rotation(),
+            },
+            WindowEvent::MouseWheel {
+                delta: MouseScrollDelta::PixelDelta(PhysicalPosition { y: dy, .. }),
+                ..
+            } => {
+                self.graphic_state
+                    .zoom_camera(&self.queue, (*dy / 10.) as f32);
+                self.window.request_redraw();
+            }
+            _ => {}
         }
     }
 
-    pub fn update(&mut self) {
-        // todo!()
+    pub fn device_event(&mut self, event: &DeviceEvent) {
+        // Right is positive x and down is positive y
+        if let DeviceEvent::MouseMotion { delta: (dx, dy) } = event {
+            self.gui_state.mouse_motion((*dx, *dy));
+            if self.graphic_state.is_camera_rotatable() {
+                self.graphic_state.rotate_camera(
+                    &self.queue,
+                    Radians::from_degrees(-(*dx / 10.) as f32),
+                    Radians::from_degrees((*dy / 10.) as f32),
+                );
+                self.window.request_redraw();
+            }
+        }
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -206,6 +240,7 @@ impl RenderState {
             });
 
             self.graphic_state.render(&mut render_pass);
+            // Execute GUI rendering last so it stays on top of our graphics and because it consumes the render_pass
             self.gui_state.render(render_pass, &screen_descriptor);
         }
 
@@ -213,6 +248,10 @@ impl RenderState {
         self.queue.submit(std::iter::once(encoder.finish()));
         self.window.pre_present_notify();
         surface_texture.present();
+
+        // This is not what I want to do, but currently have no better solution
+        // It might cause a crash if the window is open for too long, who knows...
+        self.window.request_redraw();
 
         Ok(())
     }

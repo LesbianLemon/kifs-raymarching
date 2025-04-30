@@ -1,12 +1,13 @@
-use kifs_raymarching::application;
-use kifs_raymarching::render;
+use kifs_raymarching::application::Application;
+use kifs_raymarching::render::RenderStateOptions;
 
 fn main() {
     env_logger::init();
 
-    let options = render::RenderStateOptions::default();
+    let state_options = RenderStateOptions::default();
+    let mut app = Application::new(state_options);
 
-    match application::run(options) {
+    match app.run() {
         Ok(()) => log::info!("Event loop finished. Exiting program..."),
         Err(err) => log::error!("{err}"),
     }

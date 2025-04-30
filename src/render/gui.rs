@@ -36,8 +36,20 @@ impl GuiState {
         }
     }
 
-    pub fn input(&mut self, window: &Window, event: &WindowEvent) -> EventResponse {
+    pub fn wants_pointer_input(&self) -> bool {
+        self.state.egui_ctx().wants_pointer_input()
+    }
+
+    pub fn wants_keyboard_input(&self) -> bool {
+        self.state.egui_ctx().wants_keyboard_input()
+    }
+
+    pub fn window_event(&mut self, window: &Window, event: &WindowEvent) -> EventResponse {
         self.state.on_window_event(window, event)
+    }
+
+    pub fn mouse_motion(&mut self, delta: (f64, f64)) {
+        self.state.on_mouse_motion(delta)
     }
 
     pub fn prerender(

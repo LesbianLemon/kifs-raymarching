@@ -1101,6 +1101,7 @@ dependencies = [
  "egui-winit",
  "env_logger",
  "log",
+ "num-traits",
  "pollster",
  "winit",
 ]
