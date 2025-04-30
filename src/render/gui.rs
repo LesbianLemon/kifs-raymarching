@@ -29,12 +29,12 @@ impl Gui {
 
         ui.label("combosx");
         egui::ComboBox::from_label("Take your pick")
-        .selected_text(format!("{:?}", 0))
-        .show_ui(ui, |ui| {
-            ui.selectable_value(&mut 0, 0, "First");
-            ui.selectable_value(&mut 0, 1, "Second");
-            ui.selectable_value(&mut 0, 2, "Third");
-        });
+            .selected_text(format!("{:?}", 0))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut 0, 0, "First");
+                ui.selectable_value(&mut 0, 1, "Second");
+                ui.selectable_value(&mut 0, 2, "Third");
+            });
         ui.end_row();
 
         ui.label("Slajdr");
@@ -42,7 +42,8 @@ impl Gui {
         ui.end_row();
 
         ui.label("Kulur");
-        ui.color_edit_button_srgba(&mut Color32::LIGHT_YELLOW);
+        let mut light_yellow = Color32::LIGHT_YELLOW;
+        ui.color_edit_button_srgba(&mut light_yellow);
         ui.end_row();
     }
 }
@@ -114,14 +115,14 @@ impl GuiState {
             .default_open(false)
             .show(self.state.egui_ctx(), |ui| {
                 egui::Grid::new("my_grid")
-                .num_columns(2)
-                .spacing([40.0, 4.0])
-                .striped(true)
-                .show(ui, |ui| {
-                    Gui::generate(ui);
-                });                
+                    .num_columns(2)
+                    .spacing([40.0, 4.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        Gui::generate(ui);
+                    });
             });
-        
+
         let full_output = self.state.egui_ctx().end_pass();
         self.state
             .handle_platform_output(window, full_output.platform_output);
