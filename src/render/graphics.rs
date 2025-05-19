@@ -150,9 +150,9 @@ impl GraphicState {
     pub fn rotate_camera(&mut self, queue: &wgpu::Queue, delta_phi: Radians, delta_theta: Radians) {
         let angles = self.camera_uniform.angles();
         let Vector2(new_phi, mut new_theta) = angles + Vector2(delta_phi, delta_theta);
-        
+
         // Limit theta on [-PI/2, PI/2]
-        new_theta = new_theta.clamp(-PI/2., PI/2.);
+        new_theta = new_theta.clamp(-PI / 2., PI / 2.);
 
         self.camera_uniform.update_uniform(
             CameraUniformDataDescriptor {

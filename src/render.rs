@@ -165,12 +165,15 @@ impl RenderState {
                 ElementState::Pressed => self.graphic_state.enable_camera_rotation(),
                 ElementState::Released => self.graphic_state.disable_camera_rotation(),
             },
-            WindowEvent::MouseWheel {
-                delta: MouseScrollDelta::PixelDelta(PhysicalPosition { y: dy, .. }),
-                ..
-            } => {
-                self.graphic_state
-                    .zoom_camera(&self.queue, (*dy / 10.) as f32);
+            WindowEvent::MouseWheel { delta, .. } => {
+                let distance = match delta {
+                    MouseScrollDelta::LineDelta(_, dy) => *dy,
+                    MouseScrollDelta::PixelDelta(PhysicalPosition { y: dy, .. }) => {
+                        (*dy / 10.) as f32
+                    }
+                };
+
+                self.graphic_state.zoom_camera(&self.queue, distance);
                 self.window.request_redraw();
             }
             _ => {}
