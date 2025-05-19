@@ -1,3 +1,6 @@
+const MAX_ITERATIONS = 100;
+const MAX_DISTANCE = 1000.;
+
 struct SizeUniform {
     width: u32,
     height: u32,
@@ -73,6 +76,71 @@ struct Ray {
     direction: vec3<f32>,
 }
 
+struct CollisionPoint {
+    valid: bool,
+    color: vec4<f32>,
+    camera_distance: f32,
+}
+
+fn raymarch_scene(ray: Ray) -> CollisionPoint {
+    var camera_distance = 0.;
+
+    var position = ray.origin;
+    for (var i = 0; i < MAX_ITERATIONS && camera_distance < MAX_DISTANCE; i++) {
+        let distance = scene_SDF(position);
+
+        if distance < 0.001 {
+            let normal = get_normal(position);
+            let diffuse = 0.1 + 0.9 * max(dot(normal, vec3<f32>(1., 1., 1.)), 0.);
+
+            return CollisionPoint(true, vec4<f32>(diffuse, diffuse, diffuse, 1.), camera_distance);
+        }
+
+        camera_distance += distance;
+        position += distance * ray.direction;
+    }
+
+    return CollisionPoint(false, vec4<f32>(0., 0., 0., 1.), camera_distance);
+}
+
+fn raymarch_axes(ray: Ray) -> CollisionPoint {
+    var camera_distance = 0.;
+
+    var position = ray.origin;
+    for (var i = 0; i < MAX_ITERATIONS && camera_distance < MAX_DISTANCE; i++) {
+        let distance = axes_SDF(0.1, position);
+
+        if distance < 0.001 {
+            return CollisionPoint(true, vec4<f32>(0.9, 0.9, 0.9, 1.), camera_distance);
+        }
+
+        camera_distance += distance;
+        position += distance * ray.direction;
+    }
+
+    return CollisionPoint(false, vec4<f32>(0., 0., 0., 1.), camera_distance);
+}
+
+fn compare_distances(collision1: CollisionPoint, collision2: CollisionPoint) -> vec4<f32> {
+    if collision1.camera_distance <= collision2.camera_distance {
+        return collision1.color;
+    } else {
+        return collision2.color;
+    }
+}
+
+fn compare_collisions(collision1: CollisionPoint, collision2: CollisionPoint) -> vec4<f32> {
+    if collision1.valid && collision2.valid {
+        return compare_distances(collision1, collision2);
+    } else if collision1.valid && !collision2.valid {
+        return collision1.color;
+    } else if !collision1.valid && collision2.valid {
+        return collision2.color;
+    } else {
+        return compare_distances(collision1, collision2);
+    }
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let camera_matrix = camera.matrix;
@@ -82,27 +150,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let uv_position = 2. * translated_position / f32(size.height);
     let direction = normalize(camera_matrix * vec3<f32>(-1., uv_position.x, -uv_position.y));
 
-    var origin_distance: f32;
-    var position = origin;
-    for (var i = 0; i < 100 && origin_distance < 1000.; i++) {
-        let scene_distance = scene_SDF(position);
-        let axis_distance = axes_SDF(0.05, position);
-        let distance = min(scene_distance, axis_distance);
+    let ray = Ray(origin, direction);
 
-        if scene_distance < 0.001 {
-            let normal = get_normal(position);
-            let diffuse = 0.1 + 0.9 * max(dot(normal, vec3<f32>(1., 1., 1.)), 0.);
-
-            return vec4<f32>(diffuse, diffuse, diffuse, 1.);
-        }
-
-        if axis_distance < 0.001 {
-            return vec4<f32>(0.5, 0.5, 0.5, 0.25);
-        }
-
-        origin_distance += distance;
-        position += distance*direction;
-    }
-
-    return vec4<f32>(0., 0., 0., 1.);
+    return compare_collisions(raymarch_scene(ray), raymarch_axes(ray));    
 }
