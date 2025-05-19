@@ -2,7 +2,7 @@ use egui_wgpu::wgpu;
 
 use winit::{dpi::PhysicalSize, window::Window};
 
-use crate::math::{Radians, Vector2};
+use crate::math::{PI, Radians, Vector2};
 use crate::uniform::{
     CameraUniformData, CameraUniformDataDescriptor, SizeUniformData, SizeUniformDataDescriptor,
     Uniform,
@@ -148,11 +148,15 @@ impl GraphicState {
     }
 
     pub fn rotate_camera(&mut self, queue: &wgpu::Queue, delta_phi: Radians, delta_theta: Radians) {
-        let current_angles = self.camera_uniform.angles();
+        let angles = self.camera_uniform.angles();
+        let Vector2(new_phi, mut new_theta) = angles + Vector2(delta_phi, delta_theta);
+        
+        // Limit theta on [-PI/2, PI/2]
+        new_theta = new_theta.clamp(-PI/2., PI/2.);
 
         self.camera_uniform.update_uniform(
             CameraUniformDataDescriptor {
-                angles: current_angles + Vector2(delta_phi, delta_theta),
+                angles: Vector2(new_phi.standardize(), new_theta),
                 ..self.camera_uniform.data_descriptor()
             },
             queue,

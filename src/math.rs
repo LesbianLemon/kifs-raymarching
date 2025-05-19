@@ -529,7 +529,7 @@ pub struct Radians(f32);
 
 impl Radians {
     pub fn from_radians(radians: f32) -> Self {
-        Self(((radians % TWO_PI) + TWO_PI) % TWO_PI)
+        Self(radians)
     }
 
     pub fn from_degrees(degrees: f32) -> Self {
@@ -541,25 +541,35 @@ impl Radians {
     }
 
     pub fn get_degrees(&self) -> f32 {
-        (self.0 / PI) * 180.0
+        (self.get_radians() / PI) * 180.0
+    }
+
+    // Clamps its value to [min, max]
+    pub fn clamp(self, min: f32, max: f32) -> Radians {
+        Radians::from_radians(self.get_radians().clamp(min, max))
+    }
+
+    // Returns the same angle, but on [0, 2PI]
+    pub fn standardize(self) -> Self {
+        Self(((self.get_radians() % TWO_PI) + TWO_PI) % TWO_PI)
     }
 
     pub fn cos(&self) -> f32 {
-        self.0.cos()
+        self.get_radians().cos()
     }
 
     pub fn sin(&self) -> f32 {
-        self.0.sin()
+        self.get_radians().sin()
     }
 
     pub fn cos_sin(&self) -> Vector2<f32> {
-        Vector2(self.0.cos(), self.0.sin())
+        Vector2(self.get_radians().cos(), self.get_radians().sin())
     }
 }
 
 impl PartialEq for Radians {
     fn eq(&self, other: &Self) -> bool {
-        let diff = (self.0 - other.0).abs();
+        let diff = (self.get_radians() - other.get_radians()).abs() % TWO_PI;
 
         !(EPSILON..=TWO_PI - EPSILON).contains(&diff)
     }
@@ -569,7 +579,7 @@ impl Add<Self> for Radians {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self::from_radians(self.0 + rhs.0)
+        Self::from_radians(self.get_radians() + rhs.get_radians())
     }
 }
 
@@ -577,7 +587,7 @@ impl Sub<Self> for Radians {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::from_radians(self.0 - rhs.0)
+        Self::from_radians(self.get_radians() - rhs.get_radians())
     }
 }
 
@@ -585,7 +595,7 @@ impl Neg for Radians {
     type Output = Radians;
 
     fn neg(self) -> Self::Output {
-        Self::from_radians(-self.0)
+        Self::from_radians(-self.get_radians())
     }
 }
 
