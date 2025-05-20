@@ -293,7 +293,7 @@ pub struct GuiUniformDataDescriptor {
 impl Default for GuiUniformDataDescriptor {
     fn default() -> Self {
         Self {
-            background_color: Color32::from_rgb(0, 0, 0)
+            background_color: Color32::from_rgb(0, 0, 0),
         }
     }
 }
@@ -307,7 +307,10 @@ impl UniformDataDescriptor<GuiUniformData> for GuiUniformDataDescriptor {
 
     fn from_uniform_data(data: GuiUniformData) -> Self {
         Self {
-            background_color: <Vector4Packed<f32> as IntoUnpacked<Rgba>>::into_unpacked(data.background_color).into(),
+            background_color: <Vector4Packed<f32> as IntoUnpacked<Rgba>>::into_unpacked(
+                data.background_color,
+            )
+            .into(),
         }
     }
 }
@@ -453,7 +456,8 @@ impl Uniform<CameraUniformData> {
 
 impl Uniform<GuiUniformData> {
     pub fn background_color(&self) -> Color32 {
-        self.data_descriptor::<GuiUniformDataDescriptor>().background_color
+        self.data_descriptor::<GuiUniformDataDescriptor>()
+            .background_color
     }
 }
 

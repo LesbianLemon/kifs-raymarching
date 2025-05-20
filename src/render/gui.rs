@@ -9,10 +9,7 @@ use crate::uniform::{GuiUniformData, GuiUniformDataDescriptor, Uniform};
 struct GuiGenerator;
 
 impl GuiGenerator {
-    fn update_ui(
-        ui: &mut Ui,
-        gui_descriptor: &mut GuiUniformDataDescriptor,
-    ) {
+    fn update_ui(ui: &mut Ui, gui_descriptor: &mut GuiUniformDataDescriptor) {
         egui::Grid::new("main_grid")
             .num_columns(2)
             .spacing([40.0, 4.0])
@@ -74,11 +71,8 @@ impl GuiState {
         output_color_format: wgpu::TextureFormat,
     ) -> Self {
         let gui_descriptor = GuiUniformDataDescriptor::default();
-        let gui_uniform = Uniform::<GuiUniformData>::create_uniform(
-            device,
-            gui_descriptor,
-            Some("gui_uniform"),
-        );
+        let gui_uniform =
+            Uniform::<GuiUniformData>::create_uniform(device, gui_descriptor, Some("gui_uniform"));
 
         let egui_state = EguiState::new(
             Context::default(),
@@ -121,10 +115,7 @@ impl GuiState {
         self.egui_state.on_mouse_motion(delta)
     }
 
-    pub fn update_gui_uniform(
-        &mut self,
-        queue: &wgpu::Queue,
-    ) {
+    pub fn update_gui_uniform(&mut self, queue: &wgpu::Queue) {
         self.gui_uniform.update_uniform(self.gui_descriptor, queue);
     }
 
