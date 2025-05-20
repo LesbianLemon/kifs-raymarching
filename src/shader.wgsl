@@ -21,6 +21,14 @@ struct CameraUniform {
 @binding(0)
 var<uniform> camera: CameraUniform;
 
+struct GuiUniform {
+    color: vec4<f32>,
+}
+
+@group(2)
+@binding(0)
+var<uniform> options: GuiUniform;
+
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
 }
@@ -100,7 +108,7 @@ fn raymarch_scene(ray: Ray) -> CollisionPoint {
         position += distance * ray.direction;
     }
 
-    return CollisionPoint(false, vec4<f32>(0., 0., 0., 1.), camera_distance);
+    return CollisionPoint(false, options.color, camera_distance);
 }
 
 fn raymarch_axes(ray: Ray) -> CollisionPoint {
@@ -118,7 +126,7 @@ fn raymarch_axes(ray: Ray) -> CollisionPoint {
         position += distance * ray.direction;
     }
 
-    return CollisionPoint(false, vec4<f32>(0., 0., 0., 1.), camera_distance);
+    return CollisionPoint(false, options.color, camera_distance);
 }
 
 fn compare_distances(collision1: CollisionPoint, collision2: CollisionPoint) -> vec4<f32> {

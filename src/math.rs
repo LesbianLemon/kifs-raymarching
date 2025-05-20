@@ -1,5 +1,39 @@
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
+pub trait Num: num_traits::Num {}
+
+macro_rules! impl_num {
+    ($type:ty) => {
+        impl Num for $type {}
+    };
+}
+
+impl_num!(u8);
+impl_num!(u16);
+impl_num!(u32);
+impl_num!(u64);
+impl_num!(u128);
+impl_num!(usize);
+impl_num!(i8);
+impl_num!(i16);
+impl_num!(i32);
+impl_num!(i64);
+impl_num!(i128);
+impl_num!(isize);
+impl_num!(f32);
+impl_num!(f64);
+
+pub trait Float: num_traits::Float {}
+
+macro_rules! impl_float {
+    ($type:ty) => {
+        impl Float for $type {}
+    };
+}
+
+impl_float!(f32);
+impl_float!(f64);
+
 pub use std::f32::consts::PI;
 pub const TWO_PI: f32 = 2. * PI;
 // Accuracy of 0.0001 is good enough for our graphics
@@ -16,7 +50,7 @@ impl<T> Vector2<T> {
 
 impl<T> PartialEq for Vector2<T>
 where
-    T: num_traits::Float,
+    T: Float,
 {
     fn eq(&self, other: &Self) -> bool {
         let epsilon_t =
@@ -123,7 +157,7 @@ impl<T> Vector3<T> {
 
 impl<T> PartialEq for Vector3<T>
 where
-    T: num_traits::Float,
+    T: Float,
 {
     fn eq(&self, other: &Self) -> bool {
         let epsilon_t =
@@ -228,7 +262,7 @@ impl<T> Vector4<T> {
 
 impl<T> PartialEq for Vector4<T>
 where
-    T: num_traits::Float,
+    T: Float,
 {
     fn eq(&self, other: &Self) -> bool {
         let epsilon_t =
@@ -338,7 +372,7 @@ pub struct Matrix3x3<T>(Vector3<T>, Vector3<T>, Vector3<T>);
 
 impl<T> PartialEq for Matrix3x3<T>
 where
-    T: num_traits::Float,
+    T: Float,
 {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0 && self.1 == other.1 && self.2 == other.2
@@ -350,7 +384,7 @@ impl<T> Matrix3x3<T> {
         Self(col1, col2, col3)
     }
 
-    pub fn get_columns(&self) -> (Vector3<T>, Vector3<T>, Vector3<T>)
+    pub fn columns(&self) -> (Vector3<T>, Vector3<T>, Vector3<T>)
     where
         T: Copy,
     {
@@ -365,7 +399,7 @@ impl<T> Matrix3x3<T> {
         )
     }
 
-    pub fn get_rows(&self) -> (Vector3<T>, Vector3<T>, Vector3<T>)
+    pub fn rows(&self) -> (Vector3<T>, Vector3<T>, Vector3<T>)
     where
         T: Copy,
     {
@@ -406,7 +440,7 @@ where
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        let rows = self.get_rows();
+        let rows = self.rows();
 
         Self(
             Vector3(rows.0 * rhs.0, rows.1 * rhs.0, rows.2 * rhs.0),
@@ -472,7 +506,7 @@ where
     type Output = Vector3<T>;
 
     fn mul(self, rhs: Vector3<T>) -> Self::Output {
-        let rows = self.get_rows();
+        let rows = self.rows();
 
         Vector3(rows.0 * rhs, rows.1 * rhs, rows.2 * rhs)
     }
@@ -493,7 +527,7 @@ impl Matrix3x3<f32> {
         )
     }
 
-    pub fn get_rotation_matrix_x(angle: Radians) -> Self {
+    pub fn rotation_matrix_x(angle: Radians) -> Self {
         let Vector2(cos, sin) = angle.cos_sin();
 
         Self(
@@ -503,7 +537,7 @@ impl Matrix3x3<f32> {
         )
     }
 
-    pub fn get_rotation_matrix_y(angle: Radians) -> Self {
+    pub fn rotation_matrix_y(angle: Radians) -> Self {
         let Vector2(cos, sin) = angle.cos_sin();
 
         Self(
@@ -513,7 +547,7 @@ impl Matrix3x3<f32> {
         )
     }
 
-    pub fn get_rotation_matrix_z(angle: Radians) -> Self {
+    pub fn rotation_matrix_z(angle: Radians) -> Self {
         let Vector2(cos, sin) = angle.cos_sin();
 
         Self(
@@ -536,40 +570,40 @@ impl Radians {
         Self::from_radians((degrees / 180.0) * PI)
     }
 
-    pub fn get_radians(&self) -> f32 {
+    pub fn radians(&self) -> f32 {
         self.0
     }
 
-    pub fn get_degrees(&self) -> f32 {
-        (self.get_radians() / PI) * 180.0
+    pub fn degrees(&self) -> f32 {
+        (self.radians() / PI) * 180.0
     }
 
     // Clamps its value to [min, max]
     pub fn clamp(self, min: f32, max: f32) -> Radians {
-        Radians::from_radians(self.get_radians().clamp(min, max))
+        Radians::from_radians(self.radians().clamp(min, max))
     }
 
     // Returns the same angle, but on [0, 2PI]
     pub fn standardize(self) -> Self {
-        Self(((self.get_radians() % TWO_PI) + TWO_PI) % TWO_PI)
+        Self(((self.radians() % TWO_PI) + TWO_PI) % TWO_PI)
     }
 
     pub fn cos(&self) -> f32 {
-        self.get_radians().cos()
+        self.radians().cos()
     }
 
     pub fn sin(&self) -> f32 {
-        self.get_radians().sin()
+        self.radians().sin()
     }
 
     pub fn cos_sin(&self) -> Vector2<f32> {
-        Vector2(self.get_radians().cos(), self.get_radians().sin())
+        Vector2(self.radians().cos(), self.radians().sin())
     }
 }
 
 impl PartialEq for Radians {
     fn eq(&self, other: &Self) -> bool {
-        let diff = (self.get_radians() - other.get_radians()).abs() % TWO_PI;
+        let diff = (self.radians() - other.radians()).abs() % TWO_PI;
 
         !(EPSILON..=TWO_PI - EPSILON).contains(&diff)
     }
@@ -579,7 +613,7 @@ impl Add<Self> for Radians {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self::from_radians(self.get_radians() + rhs.get_radians())
+        Self::from_radians(self.radians() + rhs.radians())
     }
 }
 
@@ -587,7 +621,7 @@ impl Sub<Self> for Radians {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::from_radians(self.get_radians() - rhs.get_radians())
+        Self::from_radians(self.radians() - rhs.radians())
     }
 }
 
@@ -595,7 +629,7 @@ impl Neg for Radians {
     type Output = Radians;
 
     fn neg(self) -> Self::Output {
-        Self::from_radians(-self.get_radians())
+        Self::from_radians(-self.radians())
     }
 }
 
@@ -910,7 +944,7 @@ mod tests {
     #[test]
     fn test_rotation_matrix_creation() {
         assert_eq!(
-            Matrix3x3::get_rotation_matrix_x(Radians::from_radians(PI / 2.)),
+            Matrix3x3::rotation_matrix_x(Radians::from_radians(PI / 2.)),
             Matrix3x3(
                 Vector3(1., 0., 0.),
                 Vector3(0., 0., 1.),
@@ -918,7 +952,7 @@ mod tests {
             )
         );
         assert_eq!(
-            Matrix3x3::get_rotation_matrix_x(Radians::from_radians(PI)),
+            Matrix3x3::rotation_matrix_x(Radians::from_radians(PI)),
             Matrix3x3(
                 Vector3(1., 0., 0.),
                 Vector3(0., -1., 0.),
@@ -926,7 +960,7 @@ mod tests {
             )
         );
         assert_eq!(
-            Matrix3x3::get_rotation_matrix_y(Radians::from_radians(PI / 2.)),
+            Matrix3x3::rotation_matrix_y(Radians::from_radians(PI / 2.)),
             Matrix3x3(
                 Vector3(0., 0., -1.),
                 Vector3(0., 1., 0.),
@@ -934,7 +968,7 @@ mod tests {
             )
         );
         assert_eq!(
-            Matrix3x3::get_rotation_matrix_y(Radians::from_radians(PI)),
+            Matrix3x3::rotation_matrix_y(Radians::from_radians(PI)),
             Matrix3x3(
                 Vector3(-1., 0., 0.),
                 Vector3(0., 1., 0.),
@@ -942,7 +976,7 @@ mod tests {
             )
         );
         assert_eq!(
-            Matrix3x3::get_rotation_matrix_z(Radians::from_radians(PI / 2.)),
+            Matrix3x3::rotation_matrix_z(Radians::from_radians(PI / 2.)),
             Matrix3x3(
                 Vector3(0., 1., 0.),
                 Vector3(-1., 0., 0.),
@@ -950,7 +984,7 @@ mod tests {
             )
         );
         assert_eq!(
-            Matrix3x3::get_rotation_matrix_z(Radians::from_radians(PI)),
+            Matrix3x3::rotation_matrix_z(Radians::from_radians(PI)),
             Matrix3x3(
                 Vector3(-1., 0., 0.),
                 Vector3(0., -1., 0.),

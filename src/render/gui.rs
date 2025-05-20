@@ -1,54 +1,67 @@
 use egui_wgpu::{Renderer, ScreenDescriptor, wgpu};
 
-use egui::{ClippedPrimitive, Color32, Context, TexturesDelta, Ui, ViewportId};
-use egui_winit::{EventResponse, State};
+use egui::{ClippedPrimitive, Context, TexturesDelta, Ui, ViewportId};
+use egui_winit::{EventResponse, State as EguiState};
 use winit::{event::WindowEvent, window::Window};
 
-struct Gui;
+use crate::uniform::{GuiUniformData, GuiUniformDataDescriptor, Uniform};
 
-impl Gui {
-    fn generate(ui: &mut Ui) {
-        ui.label("Teheme");
-        let mut theme_preference = ui.ctx().options(|opt| opt.theme_preference);
-        theme_preference.radio_buttons(ui);
-        ui.ctx().set_theme(theme_preference);
-        ui.end_row();
+struct GuiGenerator;
 
-        ui.label("Label!");
-        ui.end_row();
+impl GuiGenerator {
+    fn update_ui(
+        ui: &mut Ui,
+        gui_descriptor: &mut GuiUniformDataDescriptor,
+    ) {
+        egui::Grid::new("main_grid")
+            .num_columns(2)
+            .spacing([40.0, 4.0])
+            .striped(true)
+            .show(ui, |ui| {
+                ui.label("Teheme");
+                let mut theme_preference = ui.ctx().options(|opt| opt.theme_preference);
+                theme_preference.radio_buttons(ui);
+                ui.ctx().set_theme(theme_preference);
+                ui.end_row();
 
-        ui.label("Butpn");
-        if ui.button("Button!").clicked() {
-            println!("boom!")
-        }
-        ui.end_row();
+                ui.label("Label!");
+                ui.end_row();
 
-        ui.label("Checkboxxxxxxxx");
-        ui.checkbox(&mut true, "Checkbox");
-        ui.end_row();
+                ui.label("Butpn");
+                if ui.button("Button!").clicked() {
+                    println!("boom!")
+                }
+                ui.end_row();
 
-        ui.label("combosx");
-        egui::ComboBox::from_label("Take your pick")
-            .selected_text(format!("{:?}", 0))
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut 0, 0, "First");
-                ui.selectable_value(&mut 0, 1, "Second");
-                ui.selectable_value(&mut 0, 2, "Third");
+                ui.label("Checkboxxxxxxxx");
+                ui.checkbox(&mut true, "Checkbox");
+                ui.end_row();
+
+                ui.label("combosx");
+                egui::ComboBox::from_label("Take your pick")
+                    .selected_text(format!("{:?}", 0))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut 0, 0, "First");
+                        ui.selectable_value(&mut 0, 1, "Second");
+                        ui.selectable_value(&mut 0, 2, "Third");
+                    });
+                ui.end_row();
+
+                ui.label("Slajdr");
+                ui.add(egui::Slider::new(&mut 180.0, 0.0..=360.0).suffix("°"));
+                ui.end_row();
+
+                ui.label("Background color");
+                ui.color_edit_button_srgba(&mut gui_descriptor.background_color);
+                ui.end_row();
             });
-        ui.end_row();
-
-        ui.label("Slajdr");
-        ui.add(egui::Slider::new(&mut 180.0, 0.0..=360.0).suffix("°"));
-        ui.end_row();
-
-        ui.label("Kulur");
-        let mut light_yellow = Color32::LIGHT_YELLOW;
-        ui.color_edit_button_srgba(&mut light_yellow);
-        ui.end_row();
     }
 }
+
 pub struct GuiState {
-    state: State,
+    gui_descriptor: GuiUniformDataDescriptor,
+    gui_uniform: Uniform<GuiUniformData>,
+    egui_state: EguiState,
     renderer: Renderer,
     tris: Option<Vec<ClippedPrimitive>>,
     delta: Option<TexturesDelta>,
@@ -60,7 +73,14 @@ impl GuiState {
         device: &wgpu::Device,
         output_color_format: wgpu::TextureFormat,
     ) -> Self {
-        let state = State::new(
+        let gui_descriptor = GuiUniformDataDescriptor::default();
+        let gui_uniform = Uniform::<GuiUniformData>::create_uniform(
+            device,
+            gui_descriptor,
+            Some("gui_uniform"),
+        );
+
+        let egui_state = EguiState::new(
             Context::default(),
             ViewportId::ROOT,
             window,
@@ -72,27 +92,40 @@ impl GuiState {
         let renderer = Renderer::new(device, output_color_format, None, 1, true);
 
         Self {
-            state,
+            gui_descriptor,
+            gui_uniform,
+            egui_state,
             renderer,
             tris: None,
             delta: None,
         }
     }
 
+    pub fn gui_uniform(&self) -> &Uniform<GuiUniformData> {
+        &self.gui_uniform
+    }
+
     pub fn wants_pointer_input(&self) -> bool {
-        self.state.egui_ctx().wants_pointer_input()
+        self.egui_state.egui_ctx().wants_pointer_input()
     }
 
     pub fn wants_keyboard_input(&self) -> bool {
-        self.state.egui_ctx().wants_keyboard_input()
+        self.egui_state.egui_ctx().wants_keyboard_input()
     }
 
     pub fn window_event(&mut self, window: &Window, event: &WindowEvent) -> EventResponse {
-        self.state.on_window_event(window, event)
+        self.egui_state.on_window_event(window, event)
     }
 
     pub fn mouse_motion(&mut self, delta: (f64, f64)) {
-        self.state.on_mouse_motion(delta)
+        self.egui_state.on_mouse_motion(delta)
+    }
+
+    pub fn update_gui_uniform(
+        &mut self,
+        queue: &wgpu::Queue,
+    ) {
+        self.gui_uniform.update_uniform(self.gui_descriptor, queue);
     }
 
     pub fn prerender(
@@ -104,33 +137,30 @@ impl GuiState {
         screen_descriptor: &ScreenDescriptor,
     ) {
         let pixels_per_point = screen_descriptor.pixels_per_point;
-        self.state.egui_ctx().set_pixels_per_point(pixels_per_point);
+        self.egui_state
+            .egui_ctx()
+            .set_pixels_per_point(pixels_per_point);
 
-        let raw_input = self.state.take_egui_input(window);
-        self.state.egui_ctx().begin_pass(raw_input);
+        let raw_input = self.egui_state.take_egui_input(window);
+        self.egui_state.egui_ctx().begin_pass(raw_input);
 
-        egui::Window::new("winit + egui + wgpu says hello!")
+        egui::Window::new("Scene settings")
             .resizable(true)
             .vscroll(true)
             .default_open(false)
-            .show(self.state.egui_ctx(), |ui| {
-                egui::Grid::new("my_grid")
-                    .num_columns(2)
-                    .spacing([40.0, 4.0])
-                    .striped(true)
-                    .show(ui, |ui| {
-                        Gui::generate(ui);
-                    });
+            .show(self.egui_state.egui_ctx(), |ui| {
+                GuiGenerator::update_ui(ui, &mut self.gui_descriptor);
             });
+        self.update_gui_uniform(queue);
 
-        let full_output = self.state.egui_ctx().end_pass();
-        self.state
+        let full_output = self.egui_state.egui_ctx().end_pass();
+        self.egui_state
             .handle_platform_output(window, full_output.platform_output);
 
-        let tris = self
-            .state
-            .egui_ctx()
-            .tessellate(full_output.shapes, self.state.egui_ctx().pixels_per_point());
+        let tris = self.egui_state.egui_ctx().tessellate(
+            full_output.shapes,
+            self.egui_state.egui_ctx().pixels_per_point(),
+        );
 
         for (id, image_delta) in &full_output.textures_delta.set {
             self.renderer

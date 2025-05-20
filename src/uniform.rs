@@ -1,38 +1,31 @@
+use egui::{Color32, Rgba};
 use egui_wgpu::wgpu::{self, util::DeviceExt as _};
 use winit::dpi::PhysicalSize;
 
-use crate::math::{Matrix3x3, Radians, Vector2, Vector3, Vector4};
+use crate::math::{Matrix3x3, Num, Radians, Vector2, Vector3, Vector4};
 
-trait IntoPacked {
-    type Packed;
-
-    fn into_packed(self) -> Self::Packed;
+trait IntoPacked<Packed> {
+    fn into_packed(self) -> Packed;
 }
 
-trait IntoUnpacked {
-    type Unpacked;
-
-    fn into_unpacked(self) -> Self::Unpacked;
+trait IntoUnpacked<Unpacked> {
+    fn into_unpacked(self) -> Unpacked;
 }
 
-impl<T> IntoPacked for T
+impl<T> IntoPacked<T> for T
 where
-    T: num_traits::Num,
+    T: Num,
 {
-    type Packed = T;
-
-    fn into_packed(self) -> Self::Packed {
+    fn into_packed(self) -> T {
         self
     }
 }
 
-impl<T> IntoUnpacked for T
+impl<T> IntoUnpacked<T> for T
 where
-    T: num_traits::Num,
+    T: Num,
 {
-    type Unpacked = T;
-
-    fn into_unpacked(self) -> Self::Unpacked {
+    fn into_unpacked(self) -> T {
         self
     }
 }
@@ -41,24 +34,20 @@ where
 #[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vector2Packed<T>(T, T);
 
-impl<T> IntoPacked for Vector2<T>
+impl<T, U> IntoPacked<Vector2Packed<U>> for Vector2<T>
 where
-    T: IntoPacked,
+    T: IntoPacked<U>,
 {
-    type Packed = Vector2Packed<T::Packed>;
-
-    fn into_packed(self) -> Self::Packed {
+    fn into_packed(self) -> Vector2Packed<U> {
         Vector2Packed(self.0.into_packed(), self.1.into_packed())
     }
 }
 
-impl<T> IntoUnpacked for Vector2Packed<T>
+impl<T, U> IntoUnpacked<Vector2<U>> for Vector2Packed<T>
 where
-    T: IntoUnpacked,
+    T: IntoUnpacked<U>,
 {
-    type Unpacked = Vector2<T::Unpacked>;
-
-    fn into_unpacked(self) -> Self::Unpacked {
+    fn into_unpacked(self) -> Vector2<U> {
         Vector2(self.0.into_unpacked(), self.1.into_unpacked())
     }
 }
@@ -67,13 +56,11 @@ where
 #[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vector3Packed<T>(T, T, T);
 
-impl<T> IntoPacked for Vector3<T>
+impl<T, U> IntoPacked<Vector3Packed<U>> for Vector3<T>
 where
-    T: IntoPacked,
+    T: IntoPacked<U>,
 {
-    type Packed = Vector3Packed<T::Packed>;
-
-    fn into_packed(self) -> Self::Packed {
+    fn into_packed(self) -> Vector3Packed<U> {
         Vector3Packed(
             self.0.into_packed(),
             self.1.into_packed(),
@@ -82,13 +69,11 @@ where
     }
 }
 
-impl<T> IntoUnpacked for Vector3Packed<T>
+impl<T, U> IntoUnpacked<Vector3<U>> for Vector3Packed<T>
 where
-    T: IntoUnpacked,
+    T: IntoUnpacked<U>,
 {
-    type Unpacked = Vector3<T::Unpacked>;
-
-    fn into_unpacked(self) -> Self::Unpacked {
+    fn into_unpacked(self) -> Vector3<U> {
         Vector3(
             self.0.into_unpacked(),
             self.1.into_unpacked(),
@@ -101,13 +86,11 @@ where
 #[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vector4Packed<T>(T, T, T, T);
 
-impl<T> IntoPacked for Vector4<T>
+impl<T, U> IntoPacked<Vector4Packed<U>> for Vector4<T>
 where
-    T: IntoPacked,
+    T: IntoPacked<U>,
 {
-    type Packed = Vector4Packed<T::Packed>;
-
-    fn into_packed(self) -> Self::Packed {
+    fn into_packed(self) -> Vector4Packed<U> {
         Vector4Packed(
             self.0.into_packed(),
             self.1.into_packed(),
@@ -117,13 +100,11 @@ where
     }
 }
 
-impl<T> IntoUnpacked for Vector4Packed<T>
+impl<T, U> IntoUnpacked<Vector4<U>> for Vector4Packed<T>
 where
-    T: IntoUnpacked,
+    T: IntoUnpacked<U>,
 {
-    type Unpacked = Vector4<T::Unpacked>;
-
-    fn into_unpacked(self) -> Self::Unpacked {
+    fn into_unpacked(self) -> Vector4<U> {
         Vector4(
             self.0.into_unpacked(),
             self.1.into_unpacked(),
@@ -140,11 +121,9 @@ where
 #[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 struct Matrix3x3F32Packed(Vector4Packed<f32>, Vector4Packed<f32>, Vector4Packed<f32>);
 
-impl IntoPacked for Matrix3x3<f32> {
-    type Packed = Matrix3x3F32Packed;
-
-    fn into_packed(self) -> Self::Packed {
-        let columns = self.get_columns();
+impl IntoPacked<Matrix3x3F32Packed> for Matrix3x3<f32> {
+    fn into_packed(self) -> Matrix3x3F32Packed {
+        let columns = self.columns();
 
         Matrix3x3F32Packed(
             columns.0.extend(0.).into_packed(),
@@ -154,14 +133,12 @@ impl IntoPacked for Matrix3x3<f32> {
     }
 }
 
-impl IntoUnpacked for Matrix3x3F32Packed {
-    type Unpacked = Matrix3x3<f32>;
-
-    fn into_unpacked(self) -> Self::Unpacked {
+impl IntoUnpacked<Matrix3x3<f32>> for Matrix3x3F32Packed {
+    fn into_unpacked(self) -> Matrix3x3<f32> {
         Matrix3x3::from_columns(
-            self.0.into_unpacked().shrink(),
-            self.1.into_unpacked().shrink(),
-            self.2.into_unpacked().shrink(),
+            Vector4::shrink(self.0.into_unpacked()),
+            Vector4::shrink(self.1.into_unpacked()),
+            Vector4::shrink(self.2.into_unpacked()),
         )
     }
 }
@@ -170,19 +147,32 @@ impl IntoUnpacked for Matrix3x3F32Packed {
 #[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 struct RadiansPacked(f32);
 
-impl IntoPacked for Radians {
-    type Packed = RadiansPacked;
-
-    fn into_packed(self) -> Self::Packed {
-        RadiansPacked(self.get_radians())
+impl IntoPacked<RadiansPacked> for Radians {
+    fn into_packed(self) -> RadiansPacked {
+        RadiansPacked(self.radians())
     }
 }
 
-impl IntoUnpacked for RadiansPacked {
-    type Unpacked = Radians;
-
-    fn into_unpacked(self) -> Self::Unpacked {
+impl IntoUnpacked<Radians> for RadiansPacked {
+    fn into_unpacked(self) -> Radians {
         Radians::from_radians(self.0)
+    }
+}
+
+impl IntoPacked<Vector4Packed<f32>> for Rgba {
+    fn into_packed(self) -> Vector4Packed<f32> {
+        Vector4Packed(self[0], self[1], self[2], self[3])
+    }
+}
+
+impl IntoUnpacked<Rgba> for Vector4Packed<f32> {
+    fn into_unpacked(self) -> Rgba {
+        Rgba::from_rgba_premultiplied(
+            self.0.clamp(0., 1.),
+            self.1.clamp(0., 1.),
+            self.2.clamp(0., 1.),
+            self.3.clamp(0., 1.),
+        )
     }
 }
 
@@ -203,15 +193,18 @@ pub struct CameraUniformData {
     origin_distance: f32,
     min_distance: f32,
     angles: Vector2Packed<RadiansPacked>,
-    matrix_column1: Vector3Packed<f32>,
-    _padding1: u32,
-    matrix_column2: Vector3Packed<f32>,
-    _padding2: u32,
-    matrix_column3: Vector3Packed<f32>,
-    _padding3: u32,
+    matrix: Matrix3x3F32Packed,
 }
 
 impl UniformData for CameraUniformData {}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GuiUniformData {
+    background_color: Vector4Packed<f32>,
+}
+
+impl UniformData for GuiUniformData {}
 
 // #[repr(C)]
 // #[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
@@ -224,7 +217,7 @@ pub trait UniformDataDescriptor<Data: UniformData> {
     fn from_uniform_data(data: Data) -> Self;
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct SizeUniformDataDescriptor {
     pub width: u32,
     pub height: u32,
@@ -255,7 +248,7 @@ impl From<PhysicalSize<u32>> for SizeUniformDataDescriptor {
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct CameraUniformDataDescriptor {
     pub origin_distance: f32,
     pub min_distance: f32,
@@ -263,11 +256,11 @@ pub struct CameraUniformDataDescriptor {
 }
 
 impl CameraUniformDataDescriptor {
-    fn get_camera_matrix(&self) -> Matrix3x3<f32> {
+    fn camera_matrix(&self) -> Matrix3x3<f32> {
         let Vector2(phi, theta) = self.angles;
 
-        let phi_rotation = Matrix3x3::get_rotation_matrix_z(phi);
-        let theta_rotation = Matrix3x3::get_rotation_matrix_y(-theta);
+        let phi_rotation = Matrix3x3::rotation_matrix_z(phi);
+        let theta_rotation = Matrix3x3::rotation_matrix_y(-theta);
 
         phi_rotation * theta_rotation
     }
@@ -275,18 +268,11 @@ impl CameraUniformDataDescriptor {
 
 impl UniformDataDescriptor<CameraUniformData> for CameraUniformDataDescriptor {
     fn into_uniform_data(self) -> CameraUniformData {
-        let columns = self.get_camera_matrix().get_columns();
-
         CameraUniformData {
             origin_distance: self.origin_distance,
             min_distance: self.min_distance,
             angles: Vector2(self.angles.0, self.angles.1).into_packed(),
-            matrix_column1: columns.0.into_packed(),
-            _padding1: 0,
-            matrix_column2: columns.1.into_packed(),
-            _padding2: 0,
-            matrix_column3: columns.2.into_packed(),
-            _padding3: 0,
+            matrix: self.camera_matrix().into_packed(),
         }
     }
 
@@ -295,6 +281,33 @@ impl UniformDataDescriptor<CameraUniformData> for CameraUniformDataDescriptor {
             origin_distance: data.origin_distance,
             min_distance: data.min_distance,
             angles: Vector2(data.angles.0.into_unpacked(), data.angles.1.into_unpacked()),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct GuiUniformDataDescriptor {
+    pub background_color: Color32,
+}
+
+impl Default for GuiUniformDataDescriptor {
+    fn default() -> Self {
+        Self {
+            background_color: Color32::from_rgb(0, 0, 0)
+        }
+    }
+}
+
+impl UniformDataDescriptor<GuiUniformData> for GuiUniformDataDescriptor {
+    fn into_uniform_data(self) -> GuiUniformData {
+        GuiUniformData {
+            background_color: Rgba::from(self.background_color).into_packed(),
+        }
+    }
+
+    fn from_uniform_data(data: GuiUniformData) -> Self {
+        Self {
+            background_color: <Vector4Packed<f32> as IntoUnpacked<Rgba>>::into_unpacked(data.background_color).into(),
         }
     }
 }
@@ -434,7 +447,13 @@ impl Uniform<CameraUniformData> {
 
     pub fn matrix(&self) -> Matrix3x3<f32> {
         self.data_descriptor::<CameraUniformDataDescriptor>()
-            .get_camera_matrix()
+            .camera_matrix()
+    }
+}
+
+impl Uniform<GuiUniformData> {
+    pub fn background_color(&self) -> Color32 {
+        self.data_descriptor::<GuiUniformDataDescriptor>().background_color
     }
 }
 
@@ -501,7 +520,7 @@ mod tests {
         };
 
         assert_eq!(
-            descriptor.get_camera_matrix(),
+            descriptor.camera_matrix(),
             Matrix3x3::from_columns(
                 Vector3(1., 0., 0.),
                 Vector3(0., -1., 0.),

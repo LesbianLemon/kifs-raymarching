@@ -12,70 +12,10 @@ pub struct GraphicState {
     size_uniform: Uniform<SizeUniformData>,
     camera_uniform: Uniform<CameraUniformData>,
     camera_rotatable: bool,
-    render_pipeline: wgpu::RenderPipeline,
 }
 
 impl GraphicState {
-    fn create_render_pipeline(
-        device: &wgpu::Device,
-        bind_group_layouts: &[&wgpu::BindGroupLayout],
-        config: &wgpu::SurfaceConfiguration,
-        shader: &wgpu::ShaderModule,
-    ) -> wgpu::RenderPipeline {
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("render_pipeline_layout"),
-                bind_group_layouts,
-                push_constant_ranges: &[],
-            });
-
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("render_pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: shader,
-                entry_point: Some("vs_main"),
-                buffers: &[],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-
-                polygon_mode: wgpu::PolygonMode::Fill,
-
-                unclipped_depth: false,
-
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        })
-    }
-
-    pub fn new(
-        window: &Window,
-        device: &wgpu::Device,
-        config: &wgpu::SurfaceConfiguration,
-    ) -> Self {
+    pub fn new(window: &Window, device: &wgpu::Device) -> Self {
         let size = window.inner_size();
 
         let size_uniform = Uniform::<SizeUniformData>::create_uniform(
@@ -94,27 +34,19 @@ impl GraphicState {
         );
         let camera_rotatable = false;
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("raymarching_shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shader.wgsl").into()),
-        });
-
-        let render_pipeline = Self::create_render_pipeline(
-            device,
-            &[
-                size_uniform.bind_group_layout(),
-                camera_uniform.bind_group_layout(),
-            ],
-            config,
-            &shader,
-        );
-
         Self {
             size_uniform,
             camera_uniform,
             camera_rotatable,
-            render_pipeline,
         }
+    }
+
+    pub fn size_uniform(&self) -> &Uniform<SizeUniformData> {
+        &self.size_uniform
+    }
+
+    pub fn camera_uniform(&self) -> &Uniform<CameraUniformData> {
+        &self.camera_uniform
     }
 
     pub fn update_size(&mut self, queue: &wgpu::Queue, new_size: PhysicalSize<u32>) {
@@ -164,10 +96,6 @@ impl GraphicState {
     }
 
     pub fn render(&self, render_pass: &mut wgpu::RenderPass) {
-        render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(0, self.size_uniform.bind_group(), &[]);
-        render_pass.set_bind_group(1, self.camera_uniform.bind_group(), &[]);
-
         render_pass.draw(0..3, 0..1);
     }
 }
