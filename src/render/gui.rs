@@ -48,6 +48,10 @@ impl GuiGenerator {
                 ui.add(egui::Slider::new(&mut 180.0, 0.0..=360.0).suffix("°"));
                 ui.end_row();
 
+                ui.label("Fractal color");
+                ui.color_edit_button_srgba(&mut gui_descriptor.fractal_color);
+                ui.end_row();
+
                 ui.label("Background color");
                 ui.color_edit_button_srgba(&mut gui_descriptor.background_color);
                 ui.end_row();

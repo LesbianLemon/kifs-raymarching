@@ -201,6 +201,7 @@ impl UniformData for CameraUniformData {}
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GuiUniformData {
+    fractal_color: Vector4Packed<f32>,
     background_color: Vector4Packed<f32>,
 }
 
@@ -287,12 +288,14 @@ impl UniformDataDescriptor<CameraUniformData> for CameraUniformDataDescriptor {
 
 #[derive(Copy, Clone, Debug)]
 pub struct GuiUniformDataDescriptor {
+    pub fractal_color: Color32,
     pub background_color: Color32,
 }
 
 impl Default for GuiUniformDataDescriptor {
     fn default() -> Self {
         Self {
+            fractal_color: Color32::from_rgb(52, 235, 198),
             background_color: Color32::from_rgb(0, 0, 0),
         }
     }
@@ -301,12 +304,17 @@ impl Default for GuiUniformDataDescriptor {
 impl UniformDataDescriptor<GuiUniformData> for GuiUniformDataDescriptor {
     fn into_uniform_data(self) -> GuiUniformData {
         GuiUniformData {
+            fractal_color: Rgba::from(self.fractal_color).into_packed(),
             background_color: Rgba::from(self.background_color).into_packed(),
         }
     }
 
     fn from_uniform_data(data: GuiUniformData) -> Self {
         Self {
+            fractal_color: <Vector4Packed<f32> as IntoUnpacked<Rgba>>::into_unpacked(
+                data.fractal_color,
+            )
+            .into(),
             background_color: <Vector4Packed<f32> as IntoUnpacked<Rgba>>::into_unpacked(
                 data.background_color,
             )

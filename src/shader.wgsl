@@ -22,7 +22,8 @@ struct CameraUniform {
 var<uniform> camera: CameraUniform;
 
 struct GuiUniform {
-    color: vec4<f32>,
+    fractal_color: vec4<f32>,
+    background_color: vec4<f32>,
 }
 
 @group(2)
@@ -101,14 +102,14 @@ fn raymarch_scene(ray: Ray) -> CollisionPoint {
             let normal = get_normal(position);
             let diffuse = 0.1 + 0.9 * max(dot(normal, vec3<f32>(1., 1., 1.)), 0.);
 
-            return CollisionPoint(true, vec4<f32>(diffuse, diffuse, diffuse, 1.), camera_distance);
+            return CollisionPoint(true, vec4<f32>(diffuse*options.fractal_color.xyz, options.fractal_color.w), camera_distance);
         }
 
         camera_distance += distance;
         position += distance * ray.direction;
     }
 
-    return CollisionPoint(false, options.color, camera_distance);
+    return CollisionPoint(false, options.background_color, camera_distance);
 }
 
 fn raymarch_axes(ray: Ray) -> CollisionPoint {
@@ -126,7 +127,7 @@ fn raymarch_axes(ray: Ray) -> CollisionPoint {
         position += distance * ray.direction;
     }
 
-    return CollisionPoint(false, options.color, camera_distance);
+    return CollisionPoint(false, options.background_color, camera_distance);
 }
 
 fn compare_distances(collision1: CollisionPoint, collision2: CollisionPoint) -> vec4<f32> {
