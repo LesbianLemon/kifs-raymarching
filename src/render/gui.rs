@@ -4,7 +4,10 @@ use egui::{ClippedPrimitive, Context, TexturesDelta, Ui, ViewportId};
 use egui_winit::{EventResponse, State as EguiState};
 use winit::{event::WindowEvent, window::Window};
 
-use crate::uniform::{GuiUniformData, GuiUniformDataDescriptor, Uniform};
+use crate::{
+    scene::PrimitiveShape,
+    uniform::{GuiUniformData, GuiUniformDataDescriptor, Uniform},
+};
 
 struct GuiGenerator;
 
@@ -15,7 +18,7 @@ impl GuiGenerator {
             .spacing([40.0, 4.0])
             .striped(true)
             .show(ui, |ui| {
-                ui.label("Teheme");
+                ui.label("GUI Theme");
                 let mut theme_preference = ui.ctx().options(|opt| opt.theme_preference);
                 theme_preference.radio_buttons(ui);
                 ui.ctx().set_theme(theme_preference);
@@ -34,18 +37,45 @@ impl GuiGenerator {
                 ui.checkbox(&mut true, "Checkbox");
                 ui.end_row();
 
-                ui.label("combosx");
-                egui::ComboBox::from_label("Take your pick")
-                    .selected_text(format!("{:?}", 0))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut 0, 0, "First");
-                        ui.selectable_value(&mut 0, 1, "Second");
-                        ui.selectable_value(&mut 0, 2, "Third");
-                    });
-                ui.end_row();
-
                 ui.label("Slajdr");
                 ui.add(egui::Slider::new(&mut 180.0, 0.0..=360.0).suffix("°"));
+                ui.end_row();
+
+                ui.label("Primitive shape");
+                egui::ComboBox::from_label("Shape")
+                    .selected_text(format!("{:?}", gui_descriptor.primitive_shape))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut gui_descriptor.primitive_shape,
+                            PrimitiveShape::Sphere,
+                            format!("{:?}", PrimitiveShape::Sphere),
+                        );
+                        ui.selectable_value(
+                            &mut gui_descriptor.primitive_shape,
+                            PrimitiveShape::Cylinder,
+                            format!("{:?}", PrimitiveShape::Cylinder),
+                        );
+                        ui.selectable_value(
+                            &mut gui_descriptor.primitive_shape,
+                            PrimitiveShape::Box,
+                            format!("{:?}", PrimitiveShape::Box),
+                        );
+                        ui.selectable_value(
+                            &mut gui_descriptor.primitive_shape,
+                            PrimitiveShape::Torus,
+                            format!("{:?}", PrimitiveShape::Torus),
+                        );
+                        ui.selectable_value(
+                            &mut gui_descriptor.primitive_shape,
+                            PrimitiveShape::SierpinskiTetrahedron,
+                            format!("{:?}", PrimitiveShape::SierpinskiTetrahedron),
+                        );
+                        ui.selectable_value(
+                            &mut gui_descriptor.primitive_shape,
+                            PrimitiveShape::Bunny,
+                            format!("{:?}", PrimitiveShape::Bunny),
+                        );
+                    });
                 ui.end_row();
 
                 ui.label("Fractal color");
@@ -176,8 +206,8 @@ impl GuiState {
             screen_descriptor,
         );
 
-        for x in &self.delta.as_mut().unwrap().free {
-            self.renderer.free_texture(x)
+        for id in &self.delta.as_mut().unwrap().free {
+            self.renderer.free_texture(id)
         }
     }
 }

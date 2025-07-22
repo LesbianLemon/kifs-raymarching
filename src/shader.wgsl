@@ -24,6 +24,7 @@ var<uniform> camera: CameraUniform;
 struct GuiUniform {
     fractal_color: vec4<f32>,
     background_color: vec4<f32>,
+    primitive_id: u32,
 }
 
 @group(2)
@@ -43,27 +44,167 @@ fn vs_main(
     let x = f32(1 - i32(in_vertex_index)) * 3.;
     let y = f32(i32(in_vertex_index & 1u) * 2 - 1) * 3.;
 
-    out.clip_position = vec4<f32>(x, y, 0.0, 1.0);
+    out.clip_position = vec4<f32>(x, y, 0., 1.);
     return out;
 }
 
+struct Plane {
+    normal: vec3<f32>,
+    point: vec3<f32>,
+}
+
+fn plane_SDF(plane: Plane, position: vec3<f32>) -> f32 {
+    return dot(plane.normal, position - plane.point) / length(plane.normal);
+}
+
+fn plane_mirror(plane: Plane, position: vec3<f32>) -> vec3<f32> {
+    // We only reflect when the distance to the plane is negative (the side without the normal)
+    let plane_dist = min(plane_SDF(plane, position), 0.);
+    return position - 2. * plane_dist * normalize(plane.normal);
+}
+
 struct Sphere {
-    center: vec3<f32>,
     radius: f32,
 }
 
 fn sphere_SDF(sphere: Sphere, position: vec3<f32>) -> f32 {
-    return distance(sphere.center, position) - sphere.radius;
+    return length(position) - sphere.radius;
 }
 
-fn axes_SDF(thickness: f32, position: vec3<f32>) -> f32 {
-    return min(length(position.yz), min(length(position.xz), length(position.xy))) - thickness;
+struct Cylinder {
+    radius: f32,
+    height: f32,
+}
+
+fn cylinder_SDF(cylinder: Cylinder, position: vec3<f32>) -> f32 {
+    let d = abs(vec2<f32>(length(position.xy), position.z)) - vec2<f32>(cylinder.radius, cylinder.height);
+    return min(max(d.x, d.y), 0.) + length(max(d, vec2<f32>(0., 0.)));
+}
+
+struct Box {
+    length: f32,
+    width: f32,
+    height: f32,
+}
+
+fn box_SDF(box: Box, position: vec3<f32>) -> f32 {
+    let q = abs(position) - vec3<f32>(box.length, box.width, box.height);
+    return length(max(q, vec3<f32>(0., 0., 0.))) + min(max(q.x, max(q.y, q.z)), 0.);
+}
+
+struct Torus {
+    outer_radius: f32,
+    inner_radius: f32,
+}
+
+fn torus_SDF(torus: Torus, position: vec3<f32>) -> f32 {
+    let q = vec2<f32>(length(position.xy) - torus.outer_radius, position.z);
+    return length(q) - torus.inner_radius;
+}
+
+fn tetrahedral_fold(position: vec3<f32>) -> vec3<f32> {
+    var pos = position;
+    var normal = vec3<f32>(1., 1., 0.);
+    for (var i = 0; i < 3; i++) {
+        pos = plane_mirror(Plane(normal, vec3<f32>(0.)), pos);
+        // Right shift
+        normal = normal.zxy;
+    }
+
+    return pos;
+}
+
+fn sierpinski_tetrahedron_SDF(position: vec3<f32>) -> f32 {
+    var scale = 1.;
+    var pos = position;
+    var r = length(pos);
+    for(var i = 0; i < 10 && r < MAX_DISTANCE; i++) {
+        pos = tetrahedral_fold(pos);
+
+        scale *= 2.;
+        pos = 2. * pos - vec3<f32>(1.);
+        r = length(pos);
+    }
+
+    return (r - 2) / scale;
+}
+
+// Source: https://gist.github.com/munrocket/f247155fc22ecb8edf974d905c677de1
+fn bunny_SDF(position: vec3f) -> f32 {
+    if (dot(position, position) > 1.) {
+        return length(position) - 0.8;
+    }
+
+    let q = vec4f(position.xzy * vec3<f32>(-1., 1., -1.), 1.);
+    let f00 = sin(mat4x4f(-3.02, 1.95, -3.42, -0.6, 3.08, 0.85, -2.25, -0.24, -0.29, 1.16, -3.74, 2.89, -0.71, 4.5, -3.24, -3.5) * q);
+    let f01 = sin(mat4x4f(-0.4, -3.61, 3.23, -0.14, -0.36, 3.64, -3.91, 2.66, 2.9, -0.54, -2.75, 2.71, 7.02, -5.41, -1.12, -7.41) * q);
+    let f02 = sin(mat4x4f(-1.77, -1.28, -4.29, -3.2, -3.49, -2.81, -0.64, 2.79, 3.15, 2.14, -3.85, 1.83, -2.07, 4.49, 5.33, -2.17) * q);
+    let f03 = sin(mat4x4f(-0.49, 0.68, 3.05, 0.42, -2.87, 0.78, 3.78, -3.41, -2.65, 0.33, 0.07, -0.64, -3.24, -5.9, 1.14, -4.71) * q);
+    let f10 = sin(mat4x4f(-0.34, 0.06, -0.59, -0.76, 0.1, -0.19, -0.12, 0.44, 0.64, -0.02, -0.26, 0.15, -0.16, 0.21, 0.91, 0.15) * f00 +
+        mat4x4f(0.01, 0.54, -0.77, 0.11, 0.06, -0.14, 0.43, 0.51, -0.18, 0.08, 0.39, 0.2, 0.33, -0.49, -0.1, 0.19) * f01 +
+        mat4x4f(0.27, 0.22, 0.43, 0.53, 0.18, -0.17, 0.23, -0.64, -0.14, 0.02, -0.1, 0.16, -0.13, -0.06, -0.04, -0.36) * f02 +
+        mat4x4f(-0.13, 0.29, -0.29, 0.08, 1.13, 0.02, -0.83, 0.32, -0.32, 0.04, -0.31, -0.16, 0.14, -0.03, -0.2, 0.39) * f03 +
+        vec4f(0.73, -4.28, -1.56, -1.8)) + f00;
+    let f11 = sin(mat4x4f(-1.11, 0.55, -0.12, -1., 0.16, 0.15, -0.3, 0.31, -0.01, 0.01, 0.31, -0.42, -0.29, 0.38, -0.04, 0.71) * f00 +
+        mat4x4f(0.96, -0.02, 0.86, 0.52, -0.14, 0.6, 0.44, 0.43, 0.02, -0.15, -0.49, -0.05, -0.06, -0.25, -0.03, -0.22) * f01 +
+        mat4x4f(0.52, 0.44, -0.05, -0.11, -0.56, -0.1, -0.61, -0.4, -0.04, 0.55, 0.32, -0.07, -0.02, 0.28, 0.26, -0.49) * f02 +
+        mat4x4f(0.02, -0.32, 0.06, -0.17, -0.59, 0., -0.24, 0.6, -0.06, 0.13, -0.21, -0.27, -0.12, -0.14, 0.58, -0.55) * f03 +
+        vec4f(-2.24, -3.48, -0.8, 1.41)) + f01;
+    let f12 = sin(mat4x4f(0.44, -0.06, -0.79, -0.46, 0.05, -0.6, 0.3, 0.36, 0.35, 0.12, 0.02, 0.12, 0.4, -0.26, 0.63, -0.21) * f00 +
+        mat4x4f(-0.48, 0.43, -0.73, -0.4, 0.11, -0.01, 0.71, 0.05, -0.25, 0.25, -0.28, -0.2, 0.32, -0.02, -0.84, 0.16) * f01 +
+        mat4x4f(0.39, -0.07, 0.9, 0.36, -0.38, -0.27, -1.86, -0.39, 0.48, -0.2, -0.05, 0.1, -0., -0.21, 0.29, 0.63) * f02 +
+        mat4x4f(0.46, -0.32, 0.06, 0.09, 0.72, -0.47, 0.81, 0.78, 0.9, 0.02, -0.21, 0.08, -0.16, 0.22, 0.32, -0.13) * f03 +
+        vec4f(3.38, 1.2, 0.84, 1.41)) + f02;
+    let f13 = sin(mat4x4f(-0.41, -0.24, -0.71, -0.25, -0.24, -0.75, -0.09, 0.02, -0.27, -0.42, 0.02, 0.03, -0.01, 0.51, -0.12, -1.24) * f00 +
+        mat4x4f(0.64, 0.31, -1.36, 0.61, -0.34, 0.11, 0.14, 0.79, 0.22, -0.16, -0.29, -0.70, 0.02, -0.37, 0.49, 0.39) * f01 +
+        mat4x4f(0.79, 0.47, 0.54, -0.47, -1.13, -0.35, -1.03, -0.22, -0.67, -0.26, 0.1, 0.21, -0.07, -0.73, -0.11, 0.72) * f02 +
+        mat4x4f(0.43, -0.23, 0.13, 0.09, 1.38, -0.63, 1.57, -0.2, 0.39, -0.14, 0.42, 0.13, -0.57, -0.08, -0.21, 0.21) * f03 +
+        vec4f(-0.34, -3.28, 0.43, -0.52)) + f03;
+    let f20 = sin(mat4x4f(-0.72, 0.23, -0.89, 0.52, 0.38, 0.19, -0.16, -0.88, 0.26, -0.37, 0.09, 0.63, 0.29, -0.72, 0.3, -0.95) * f10 +
+        mat4x4f(-0.22, -0.51, -0.42, -0.73, -0.32, 0., -1.03, 1.17, -0.2, -0.03, -0.13, -0.16, -0.41, 0.09, 0.36, -0.84) * f11 +
+        mat4x4f(-0.21, 0.01, 0.33, 0.47, 0.05, 0.2, -0.44, -1.04, 0.13, 0.12, -0.13, 0.31, 0.01, -0.34, 0.41, -0.34) * f12 +
+        mat4x4f(-0.13, -0.06, -0.39, -0.22, 0.48, 0.25, 0.24, -0.97, -0.34, 0.14, 0.42, -0., -0.44, 0.05, 0.09, -0.95) * f13 +
+        vec4f(0.48, 0.87, -0.87, -2.06)) / 1.4 + f10;
+    let f21 = sin(mat4x4f(-0.27, 0.29, -0.21, 0.15, 0.34, -0.23, 0.85, -0.09, -1.15, -0.24, -0.05, -0.25, -0.12, -0.73, -0.17, -0.37) * f10 +
+        mat4x4f(-1.11, 0.35, -0.93, -0.06, -0.79, -0.03, -0.46, -0.37, 0.6, -0.37, -0.14, 0.45, -0.03, -0.21, 0.02, 0.59) * f11 +
+        mat4x4f(-0.92, -0.17, -0.58, -0.18, 0.58, 0.6, 0.83, -1.04, -0.8, -0.16, 0.23, -0.11, 0.08, 0.16, 0.76, 0.61) * f12 +
+        mat4x4f(0.29, 0.45, 0.3, 0.39, -0.91, 0.66, -0.35, -0.35, 0.21, 0.16, -0.54, -0.63, 1.1, -0.38, 0.2, 0.15) * f13 +
+        vec4f(-1.72, -0.14, 1.92, 2.08)) / 1.4 + f11;
+    let f22 = sin(mat4x4f(1., 0.66, 1.3, -0.51, 0.88, 0.25, -0.67, 0.03, -0.68, -0.08, -0.12, -0.14, 0.46, 1.15, 0.38, -0.1) * f10 +
+        mat4x4f(0.51, -0.57, 0.41, -0.09, 0.68, -0.5, -0.04, -1.01, 0.2, 0.44, -0.6, 0.46, -0.09, -0.37, -1.3, 0.04) * f11 +
+        mat4x4f(0.14, 0.29, -0.45, -0.06, -0.65, 0.33, -0.37, -0.95, 0.71, -0.07, 1., -0.6, -1.68, -0.2, -0., -0.7) * f12 +
+        mat4x4f(-0.31, 0.69, 0.56, 0.13, 0.95, 0.36, 0.56, 0.59, -0.63, 0.52, -0.3, 0.17, 1.23, 0.72, 0.95, 0.75) * f13 +
+        vec4f(-0.9, -3.26, -0.44, -3.11)) / 1.4 + f12;
+    let f23 = sin(mat4x4f(0.51, -0.98, -0.28, 0.16, -0.22, -0.17, -1.03, 0.22, 0.7, -0.15, 0.12, 0.43, 0.78, 0.67, -0.85, -0.25) * f10 +
+        mat4x4f(0.81, 0.6, -0.89, 0.61, -1.03, -0.33, 0.6, -0.11, -0.06, 0.01, -0.02, -0.44, 0.73, 0.69, 1.02, 0.62) * f11 +
+        mat4x4f(-0.1, 0.52, 0.8, -0.65, 0.4, -0.75, 0.47, 1.56, 0.03, 0.05, 0.08, 0.31, -0.03, 0.22, -1.63, 0.07) * f12 +
+        mat4x4f(-0.18, -0.07, -1.22, 0.48, -0.01, 0.56, 0.07, 0.15, 0.24, 0.25, -0.09, -0.54, 0.23, -0.08, 0.2, 0.36) * f13 +
+        vec4f(-1.11, -4.28, 1.02, -0.23)) / 1.4 + f13;
+
+    return dot(f20, vec4f(0.09, 0.12, -0.07, -0.03)) + dot(f21, vec4f(-0.04, 0.07, -0.08, 0.05)) +
+        dot(f22, vec4f(-0.01, 0.06, -0.02, 0.07)) + dot(f23, vec4f(-0.05, 0.07, 0.03, 0.04)) - 0.16;
 }
 
 fn scene_SDF(position: vec3<f32>) -> f32 {
-    let sphere = Sphere(vec3<f32>(0., 0., 0.), 5.);
+    if options.primitive_id == 0 {
+        let sphere = Sphere(1.);
+        return sphere_SDF(sphere, position);
+    } else if options.primitive_id == 1 {
+        let cylinder = Cylinder(1., 2.);
+        return cylinder_SDF(cylinder, position);
+    } else if options.primitive_id == 2 {
+        let box = Box(1., 1., 1.);
+        return box_SDF(box, position);
+    } else if options.primitive_id == 3 {
+        let torus = Torus(1., 0.3);
+        return torus_SDF(torus, position);
+    } else if options.primitive_id == 4 {
+        return sierpinski_tetrahedron_SDF(position);
+    } else if options.primitive_id == 5 {
+        return bunny_SDF(position);
+    }
 
-    return sphere_SDF(sphere, position);
+    return 1.;
 }
 
 fn get_normal(position: vec3<f32>) -> vec3<f32> {
@@ -86,12 +227,12 @@ struct Ray {
 }
 
 struct CollisionPoint {
-    valid: bool,
+    valid_hit: bool,
     color: vec4<f32>,
     camera_distance: f32,
 }
 
-fn raymarch_scene(ray: Ray) -> CollisionPoint {
+fn raymarch(ray: Ray) -> CollisionPoint {
     var camera_distance = 0.;
 
     var position = ray.origin;
@@ -102,7 +243,7 @@ fn raymarch_scene(ray: Ray) -> CollisionPoint {
             let normal = get_normal(position);
             let diffuse = 0.1 + 0.9 * max(dot(normal, vec3<f32>(1., 1., 1.)), 0.);
 
-            return CollisionPoint(true, vec4<f32>(diffuse*options.fractal_color.xyz, options.fractal_color.w), camera_distance);
+            return CollisionPoint(true, vec4<f32>(diffuse * options.fractal_color.xyz, options.fractal_color.w), camera_distance);
         }
 
         camera_distance += distance;
@@ -110,44 +251,6 @@ fn raymarch_scene(ray: Ray) -> CollisionPoint {
     }
 
     return CollisionPoint(false, options.background_color, camera_distance);
-}
-
-fn raymarch_axes(ray: Ray) -> CollisionPoint {
-    var camera_distance = 0.;
-
-    var position = ray.origin;
-    for (var i = 0; i < MAX_ITERATIONS && camera_distance < MAX_DISTANCE; i++) {
-        let distance = axes_SDF(0.1, position);
-
-        if distance < 0.001 {
-            return CollisionPoint(true, vec4<f32>(0.9, 0.9, 0.9, 1.), camera_distance);
-        }
-
-        camera_distance += distance;
-        position += distance * ray.direction;
-    }
-
-    return CollisionPoint(false, options.background_color, camera_distance);
-}
-
-fn compare_distances(collision1: CollisionPoint, collision2: CollisionPoint) -> vec4<f32> {
-    if collision1.camera_distance <= collision2.camera_distance {
-        return collision1.color;
-    } else {
-        return collision2.color;
-    }
-}
-
-fn compare_collisions(collision1: CollisionPoint, collision2: CollisionPoint) -> vec4<f32> {
-    if collision1.valid && collision2.valid {
-        return compare_distances(collision1, collision2);
-    } else if collision1.valid && !collision2.valid {
-        return collision1.color;
-    } else if !collision1.valid && collision2.valid {
-        return collision2.color;
-    } else {
-        return compare_distances(collision1, collision2);
-    }
 }
 
 @fragment
@@ -161,5 +264,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let ray = Ray(origin, direction);
 
-    return compare_collisions(raymarch_scene(ray), raymarch_axes(ray));    
+    return raymarch(ray).color;
 }

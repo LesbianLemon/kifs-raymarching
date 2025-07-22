@@ -26,8 +26,8 @@ impl GraphicState {
         let camera_uniform = Uniform::<CameraUniformData>::create_uniform(
             device,
             CameraUniformDataDescriptor {
-                origin_distance: 15.,
-                min_distance: 5.,
+                origin_distance: 5.,
+                min_distance: 2.,
                 angles: Vector2(Radians::from_degrees(-45.), Radians::from_degrees(20.)),
             },
             Some("camera_uniform"),

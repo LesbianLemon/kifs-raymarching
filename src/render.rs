@@ -296,7 +296,7 @@ impl RenderState {
             &screen_descriptor,
         );
 
-        // Drawing and rendering happens here
+        // Drawing and rendering calls happen here
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -304,12 +304,7 @@ impl RenderState {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.,
-                            g: 0.,
-                            b: 0.,
-                            a: 1.,
-                        }),
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -328,11 +323,12 @@ impl RenderState {
             self.gui_state.render(render_pass, &screen_descriptor);
         }
 
-        // Submit the queue to the GPU
+        // Submit the queue to the GPU and present the changed surface
         self.queue.submit(std::iter::once(encoder.finish()));
         self.window.pre_present_notify();
         surface_texture.present();
 
+        // Request a window redraw
         // This is not what I want to do, but currently have no better solution
         // It might cause a crash if the window is open for too long, who knows...
         self.window.request_redraw();

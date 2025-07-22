@@ -2,179 +2,11 @@ use egui::{Color32, Rgba};
 use egui_wgpu::wgpu::{self, util::DeviceExt as _};
 use winit::dpi::PhysicalSize;
 
-use crate::math::{Matrix3x3, Num, Radians, Vector2, Vector3, Vector4};
-
-trait IntoPacked<Packed> {
-    fn into_packed(self) -> Packed;
-}
-
-trait IntoUnpacked<Unpacked> {
-    fn into_unpacked(self) -> Unpacked;
-}
-
-impl<T> IntoPacked<T> for T
-where
-    T: Num,
-{
-    fn into_packed(self) -> T {
-        self
-    }
-}
-
-impl<T> IntoUnpacked<T> for T
-where
-    T: Num,
-{
-    fn into_unpacked(self) -> T {
-        self
-    }
-}
-
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vector2Packed<T>(T, T);
-
-impl<T, U> IntoPacked<Vector2Packed<U>> for Vector2<T>
-where
-    T: IntoPacked<U>,
-{
-    fn into_packed(self) -> Vector2Packed<U> {
-        Vector2Packed(self.0.into_packed(), self.1.into_packed())
-    }
-}
-
-impl<T, U> IntoUnpacked<Vector2<U>> for Vector2Packed<T>
-where
-    T: IntoUnpacked<U>,
-{
-    fn into_unpacked(self) -> Vector2<U> {
-        Vector2(self.0.into_unpacked(), self.1.into_unpacked())
-    }
-}
-
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vector3Packed<T>(T, T, T);
-
-impl<T, U> IntoPacked<Vector3Packed<U>> for Vector3<T>
-where
-    T: IntoPacked<U>,
-{
-    fn into_packed(self) -> Vector3Packed<U> {
-        Vector3Packed(
-            self.0.into_packed(),
-            self.1.into_packed(),
-            self.2.into_packed(),
-        )
-    }
-}
-
-impl<T, U> IntoUnpacked<Vector3<U>> for Vector3Packed<T>
-where
-    T: IntoUnpacked<U>,
-{
-    fn into_unpacked(self) -> Vector3<U> {
-        Vector3(
-            self.0.into_unpacked(),
-            self.1.into_unpacked(),
-            self.2.into_unpacked(),
-        )
-    }
-}
-
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vector4Packed<T>(T, T, T, T);
-
-impl<T, U> IntoPacked<Vector4Packed<U>> for Vector4<T>
-where
-    T: IntoPacked<U>,
-{
-    fn into_packed(self) -> Vector4Packed<U> {
-        Vector4Packed(
-            self.0.into_packed(),
-            self.1.into_packed(),
-            self.2.into_packed(),
-            self.3.into_packed(),
-        )
-    }
-}
-
-impl<T, U> IntoUnpacked<Vector4<U>> for Vector4Packed<T>
-where
-    T: IntoUnpacked<U>,
-{
-    fn into_unpacked(self) -> Vector4<U> {
-        Vector4(
-            self.0.into_unpacked(),
-            self.1.into_unpacked(),
-            self.2.into_unpacked(),
-            self.3.into_unpacked(),
-        )
-    }
-}
-
-// Implementation for f32 matrix specifically
-// Due to stupid alignment bullshit, making matrix packed more general is impossible (i swear i tried)
-// Need to use Vector4Packed due to Vector3Packed<f32> having size 12 and alignment 16
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-struct Matrix3x3F32Packed(Vector4Packed<f32>, Vector4Packed<f32>, Vector4Packed<f32>);
-
-impl IntoPacked<Matrix3x3F32Packed> for Matrix3x3<f32> {
-    fn into_packed(self) -> Matrix3x3F32Packed {
-        let columns = self.columns();
-
-        Matrix3x3F32Packed(
-            columns.0.extend(0.).into_packed(),
-            columns.1.extend(0.).into_packed(),
-            columns.2.extend(0.).into_packed(),
-        )
-    }
-}
-
-impl IntoUnpacked<Matrix3x3<f32>> for Matrix3x3F32Packed {
-    fn into_unpacked(self) -> Matrix3x3<f32> {
-        Matrix3x3::from_columns(
-            Vector4::shrink(self.0.into_unpacked()),
-            Vector4::shrink(self.1.into_unpacked()),
-            Vector4::shrink(self.2.into_unpacked()),
-        )
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-struct RadiansPacked(f32);
-
-impl IntoPacked<RadiansPacked> for Radians {
-    fn into_packed(self) -> RadiansPacked {
-        RadiansPacked(self.radians())
-    }
-}
-
-impl IntoUnpacked<Radians> for RadiansPacked {
-    fn into_unpacked(self) -> Radians {
-        Radians::from_radians(self.0)
-    }
-}
-
-impl IntoPacked<Vector4Packed<f32>> for Rgba {
-    fn into_packed(self) -> Vector4Packed<f32> {
-        Vector4Packed(self[0], self[1], self[2], self[3])
-    }
-}
-
-impl IntoUnpacked<Rgba> for Vector4Packed<f32> {
-    fn into_unpacked(self) -> Rgba {
-        Rgba::from_rgba_premultiplied(
-            self.0.clamp(0., 1.),
-            self.1.clamp(0., 1.),
-            self.2.clamp(0., 1.),
-            self.3.clamp(0., 1.),
-        )
-    }
-}
+use crate::math::{Matrix3x3, Radians, Vector2};
+use crate::packed::{
+    IntoPacked as _, IntoUnpacked, Matrix3x3F32Packed, RadiansPacked, Vector2Packed, Vector4Packed,
+};
+use crate::scene::PrimitiveShape;
 
 pub trait UniformData: bytemuck::Pod {}
 
@@ -203,15 +35,11 @@ impl UniformData for CameraUniformData {}
 pub struct GuiUniformData {
     fractal_color: Vector4Packed<f32>,
     background_color: Vector4Packed<f32>,
+    primitive_id: u32,
+    _padding: [u32; 3],
 }
 
 impl UniformData for GuiUniformData {}
-
-// #[repr(C)]
-// #[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
-// struct FractalUniformData {
-//     // TODO
-// }
 
 pub trait UniformDataDescriptor<Data: UniformData> {
     fn into_uniform_data(self) -> Data;
@@ -290,13 +118,15 @@ impl UniformDataDescriptor<CameraUniformData> for CameraUniformDataDescriptor {
 pub struct GuiUniformDataDescriptor {
     pub fractal_color: Color32,
     pub background_color: Color32,
+    pub primitive_shape: PrimitiveShape,
 }
 
 impl Default for GuiUniformDataDescriptor {
     fn default() -> Self {
         Self {
-            fractal_color: Color32::from_rgb(52, 235, 198),
+            fractal_color: Color32::from_rgb(200, 200, 200),
             background_color: Color32::from_rgb(0, 0, 0),
+            primitive_shape: PrimitiveShape::Sphere,
         }
     }
 }
@@ -306,6 +136,8 @@ impl UniformDataDescriptor<GuiUniformData> for GuiUniformDataDescriptor {
         GuiUniformData {
             fractal_color: Rgba::from(self.fractal_color).into_packed(),
             background_color: Rgba::from(self.background_color).into_packed(),
+            primitive_id: self.primitive_shape.id(),
+            _padding: [0, 0, 0],
         }
     }
 
@@ -319,6 +151,7 @@ impl UniformDataDescriptor<GuiUniformData> for GuiUniformDataDescriptor {
                 data.background_color,
             )
             .into(),
+            primitive_shape: PrimitiveShape::from_id(data.primitive_id),
         }
     }
 }
@@ -472,7 +305,10 @@ impl Uniform<GuiUniformData> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::math::PI;
+    use crate::{
+        math::{PI, Vector3, Vector4},
+        packed::Vector3Packed,
+    };
 
     #[test]
     fn test_packing_and_depacking() {
