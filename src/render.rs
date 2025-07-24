@@ -71,9 +71,27 @@ impl RenderState {
             .unwrap()
     }
 
+    fn surface_format(surface_capabilities: &wgpu::SurfaceCapabilities) -> wgpu::TextureFormat {
+        // Find first preferred SRGB format, otherwise use the general preferred one
+        surface_capabilities
+            .formats
+            .iter()
+            .find(|f| f.is_srgb())
+            .copied()
+            .unwrap_or(surface_capabilities.formats[0])
+    }
+
+    fn alpha_mode(surface_capabilities: &wgpu::SurfaceCapabilities) -> wgpu::CompositeAlphaMode {
+        if surface_capabilities.alpha_modes.contains(&wgpu::CompositeAlphaMode::Auto) {
+            wgpu::CompositeAlphaMode::Auto
+        } else {
+            surface_capabilities.alpha_modes[0]
+        }
+    }
+
     fn create_surface_config(
-        surface_capabilities: &wgpu::SurfaceCapabilities,
         surface_format: &wgpu::TextureFormat,
+        alpha_mode: &wgpu::CompositeAlphaMode,
         size: PhysicalSize<u32>,
     ) -> wgpu::SurfaceConfiguration {
         wgpu::SurfaceConfiguration {
@@ -81,8 +99,8 @@ impl RenderState {
             format: *surface_format,
             width: size.width,
             height: size.height,
-            present_mode: surface_capabilities.present_modes[0],
-            alpha_mode: surface_capabilities.alpha_modes[0],
+            present_mode: wgpu::PresentMode::AutoVsync, // This is supported on all platforms if adapter is compatible with the surface
+            alpha_mode: *alpha_mode,
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         }
@@ -143,16 +161,6 @@ impl RenderState {
         })
     }
 
-    fn surface_format(surface_capabilities: &wgpu::SurfaceCapabilities) -> wgpu::TextureFormat {
-        // surface_capabilities vector is guaranteed to contain Bgra8UnormSrgb by the library
-        surface_capabilities
-            .formats
-            .iter()
-            .find(|f| f.is_srgb())
-            .copied()
-            .unwrap_or(surface_capabilities.formats[0])
-    }
-
     pub async fn new(window: Arc<Window>, options: &RenderStateOptions) -> Self {
         let size = window.inner_size();
 
@@ -167,9 +175,12 @@ impl RenderState {
         let (device, queue) = Self::create_device_and_queue(&adapter, options).await;
 
         let surface_capabilities = surface.get_capabilities(&adapter);
-
+        
+        // Surface is guaranteed compatible with adapter on adapter initialisation,
+        // meaning surface_format and alpha_mode are well defined
         let surface_format = Self::surface_format(&surface_capabilities);
-        let config = Self::create_surface_config(&surface_capabilities, &surface_format, size);
+        let alpha_mode = Self::alpha_mode(&surface_capabilities);
+        let config = Self::create_surface_config(&surface_format, &alpha_mode, size);
 
         let graphic_state = graphics::GraphicState::new(&window, &device);
         let gui_state = gui::GuiState::new(&window, &device, surface_format);
@@ -222,6 +233,7 @@ impl RenderState {
             self.surface.configure(&self.device, &self.config);
 
             self.graphic_state.update_size(&self.queue, new_size);
+            self.window.request_redraw();
         }
     }
 
