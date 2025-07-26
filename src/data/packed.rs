@@ -177,3 +177,61 @@ impl IntoUnpacked<Radians> for RadiansPacked {
         Radians::from_radians(self.0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        data::packed::Vector3Packed,
+        math::{Vector3, Vector4},
+    };
+
+    #[test]
+    fn test_packing_and_depacking() {
+        assert_eq!(Vector2(1., 2.).into_packed(), Vector2Packed(1., 2.));
+        assert_eq!(Vector2Packed(1., 2.).into_unpacked(), Vector2(1., 2.));
+        assert_eq!(Vector3(1., 2., 3.).into_packed(), Vector3Packed(1., 2., 3.));
+        assert_eq!(
+            Vector3Packed(1., 2., 3.).into_unpacked(),
+            Vector3(1., 2., 3.)
+        );
+        assert_eq!(
+            Vector4(1., 2., 3., 4.).into_packed(),
+            Vector4Packed(1., 2., 3., 4.)
+        );
+        assert_eq!(
+            Vector4Packed(1., 2., 3., 4.).into_unpacked(),
+            Vector4(1., 2., 3., 4.)
+        );
+        assert_eq!(
+            Matrix3x3::from_columns(
+                Vector3(1., 2., 3.),
+                Vector3(4., 5., 6.),
+                Vector3(7., 8., 9.),
+            )
+            .into_packed(),
+            Matrix3x3F32Packed(
+                Vector4Packed(1., 2., 3., 0.),
+                Vector4Packed(4., 5., 6., 0.),
+                Vector4Packed(7., 8., 9., 0.),
+            )
+        );
+        assert_eq!(
+            Matrix3x3F32Packed(
+                Vector4Packed(1., 2., 3., 0.),
+                Vector4Packed(4., 5., 6., 0.),
+                Vector4Packed(7., 8., 9., 0.),
+            )
+            .into_unpacked(),
+            Matrix3x3::from_columns(
+                Vector3(1., 2., 3.),
+                Vector3(4., 5., 6.),
+                Vector3(7., 8., 9.),
+            )
+        );
+        assert_eq!(
+            Vector2(Vector2(1., 2.), Vector2(3., 4.)).into_packed(),
+            Vector2Packed(Vector2Packed(1., 2.), Vector2Packed(3., 4.))
+        );
+    }
+}

@@ -1,6 +1,5 @@
-use std::{error, fmt};
-
 use egui_wgpu::wgpu::SurfaceError;
+use std::{error, fmt};
 use winit::error::EventLoopError;
 
 #[derive(Debug)]

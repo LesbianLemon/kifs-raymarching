@@ -1,5 +1,4 @@
 use egui_wgpu::wgpu;
-
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
@@ -44,7 +43,7 @@ impl Application {
                 }
                 _ => {}
             }
-        };
+        }
 
         Ok(())
     }
@@ -61,6 +60,7 @@ impl Application {
 
 impl ApplicationHandler for Application {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        // Run once when the window is still not created and start the window event loop
         if !self.is_configured() {
             let window = Arc::new(
                 event_loop
@@ -118,7 +118,7 @@ impl ApplicationHandler for Application {
                 _ => {}
             }
         } else {
-            log::warn!("Cannot process window event due to unconfigured application")
+            log::warn!("Cannot process window event due to unconfigured application");
         }
     }
 
@@ -134,7 +134,7 @@ impl ApplicationHandler for Application {
         {
             state.device_event(&event);
         } else {
-            log::warn!("Cannot process device event due to unconfigured application")
+            log::warn!("Cannot process device event due to unconfigured application");
         }
     }
 }

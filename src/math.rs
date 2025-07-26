@@ -579,7 +579,7 @@ impl Radians {
     }
 
     // Clamps its value to [min, max]
-    pub fn clamp(self, min: f32, max: f32) -> Radians {
+    pub fn clamp(self, min: f32, max: f32) -> Self {
         Radians::from_radians(self.radians().clamp(min, max))
     }
 
@@ -626,7 +626,7 @@ impl Sub<Self> for Radians {
 }
 
 impl Neg for Radians {
-    type Output = Radians;
+    type Output = Self;
 
     fn neg(self) -> Self::Output {
         Self::from_radians(-self.radians())

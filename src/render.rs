@@ -2,7 +2,6 @@ use egui_wgpu::{
     ScreenDescriptor,
     wgpu::{self, InstanceDescriptor},
 };
-
 use std::sync::Arc;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -24,7 +23,6 @@ pub struct RenderStateOptions {
 
 pub struct RenderState {
     window: Arc<Window>,
-    size: PhysicalSize<u32>,
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -82,7 +80,10 @@ impl RenderState {
     }
 
     fn alpha_mode(surface_capabilities: &wgpu::SurfaceCapabilities) -> wgpu::CompositeAlphaMode {
-        if surface_capabilities.alpha_modes.contains(&wgpu::CompositeAlphaMode::Auto) {
+        if surface_capabilities
+            .alpha_modes
+            .contains(&wgpu::CompositeAlphaMode::Auto)
+        {
             wgpu::CompositeAlphaMode::Auto
         } else {
             surface_capabilities.alpha_modes[0]
@@ -101,7 +102,7 @@ impl RenderState {
             height: size.height,
             present_mode: wgpu::PresentMode::AutoVsync, // This is supported on all platforms if adapter is compatible with the surface
             alpha_mode: *alpha_mode,
-            view_formats: vec![],
+            view_formats: vec![], // View formats of the surface format are always allowed, even when specifying an empty vector
             desired_maximum_frame_latency: 2,
         }
     }
@@ -162,8 +163,6 @@ impl RenderState {
     }
 
     pub async fn new(window: Arc<Window>, options: &RenderStateOptions) -> Self {
-        let size = window.inner_size();
-
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..InstanceDescriptor::default()
@@ -175,12 +174,12 @@ impl RenderState {
         let (device, queue) = Self::create_device_and_queue(&adapter, options).await;
 
         let surface_capabilities = surface.get_capabilities(&adapter);
-        
+
         // Surface is guaranteed compatible with adapter on adapter initialisation,
         // meaning surface_format and alpha_mode are well defined
         let surface_format = Self::surface_format(&surface_capabilities);
         let alpha_mode = Self::alpha_mode(&surface_capabilities);
-        let config = Self::create_surface_config(&surface_format, &alpha_mode, size);
+        let config = Self::create_surface_config(&surface_format, &alpha_mode, window.inner_size());
 
         let graphic_state = graphics::GraphicState::new(&window, &device);
         let gui_state = gui::GuiState::new(&window, &device, surface_format);
@@ -206,7 +205,6 @@ impl RenderState {
 
         Self {
             window,
-            size,
             surface,
             device,
             queue,
@@ -222,12 +220,11 @@ impl RenderState {
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {
-        self.size
+        self.window.inner_size()
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
-            self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
@@ -238,6 +235,7 @@ impl RenderState {
     }
 
     pub fn window_event(&mut self, event: &WindowEvent) {
+        // Check if event was for the GUI
         let response = self.gui_state.window_event(&self.window, event);
         if self.gui_state.wants_pointer_input() || response.consumed {
             self.window.request_redraw();
@@ -290,7 +288,7 @@ impl RenderState {
             .create_view(&wgpu::TextureViewDescriptor::default());
 
         let screen_descriptor = ScreenDescriptor {
-            size_in_pixels: [self.size.width, self.size.height],
+            size_in_pixels: [self.size().width, self.size().height],
             pixels_per_point: self.window.scale_factor() as f32,
         };
 

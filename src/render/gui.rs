@@ -1,18 +1,14 @@
-use egui_wgpu::{Renderer, ScreenDescriptor, wgpu};
-
 use egui::{ClippedPrimitive, Context, TexturesDelta, Ui, ViewportId};
+use egui_wgpu::{Renderer, ScreenDescriptor, wgpu};
 use egui_winit::{EventResponse, State as EguiState};
 use winit::{event::WindowEvent, window::Window};
 
-use crate::{
-    scene::PrimitiveShape,
-    uniform::{GuiUniformData, GuiUniformDataDescriptor, Uniform},
-};
+use crate::data::{GuiData, scene::PrimitiveShape, uniform::Uniform};
 
 struct GuiGenerator;
 
 impl GuiGenerator {
-    fn update_ui(ui: &mut Ui, gui_descriptor: &mut GuiUniformDataDescriptor) {
+    fn update_ui(ui: &mut Ui, gui_descriptor: &mut GuiData) {
         egui::Grid::new("main_grid")
             .num_columns(2)
             .spacing([40.0, 4.0])
@@ -29,7 +25,7 @@ impl GuiGenerator {
 
                 ui.label("Butpn");
                 if ui.button("Button!").clicked() {
-                    println!("boom!")
+                    println!("boom!");
                 }
                 ui.end_row();
 
@@ -90,8 +86,7 @@ impl GuiGenerator {
 }
 
 pub struct GuiState {
-    gui_descriptor: GuiUniformDataDescriptor,
-    gui_uniform: Uniform<GuiUniformData>,
+    gui_uniform: Uniform<GuiData>,
     egui_state: EguiState,
     renderer: Renderer,
     tris: Option<Vec<ClippedPrimitive>>,
@@ -104,9 +99,7 @@ impl GuiState {
         device: &wgpu::Device,
         output_color_format: wgpu::TextureFormat,
     ) -> Self {
-        let gui_descriptor = GuiUniformDataDescriptor::default();
-        let gui_uniform =
-            Uniform::<GuiUniformData>::create_uniform(device, gui_descriptor, Some("gui_uniform"));
+        let gui_uniform = Uniform::create_uniform(device, GuiData::default(), Some("gui_uniform"));
 
         let egui_state = EguiState::new(
             Context::default(),
@@ -120,7 +113,6 @@ impl GuiState {
         let renderer = Renderer::new(device, output_color_format, None, 1, true);
 
         Self {
-            gui_descriptor,
             gui_uniform,
             egui_state,
             renderer,
@@ -129,7 +121,7 @@ impl GuiState {
         }
     }
 
-    pub fn gui_uniform(&self) -> &Uniform<GuiUniformData> {
+    pub fn gui_uniform(&self) -> &Uniform<GuiData> {
         &self.gui_uniform
     }
 
@@ -146,11 +138,11 @@ impl GuiState {
     }
 
     pub fn mouse_motion(&mut self, delta: (f64, f64)) {
-        self.egui_state.on_mouse_motion(delta)
+        self.egui_state.on_mouse_motion(delta);
     }
 
-    pub fn update_gui_uniform(&mut self, queue: &wgpu::Queue) {
-        self.gui_uniform.update_uniform(self.gui_descriptor, queue);
+    pub fn update_gui_uniform(&mut self, queue: &wgpu::Queue, new_gui_data: GuiData) {
+        self.gui_uniform.update_uniform(new_gui_data, queue);
     }
 
     pub fn prerender(
@@ -169,14 +161,15 @@ impl GuiState {
         let raw_input = self.egui_state.take_egui_input(window);
         self.egui_state.egui_ctx().begin_pass(raw_input);
 
+        let mut gui_data = self.gui_uniform.descriptor();
         egui::Window::new("Scene settings")
             .resizable(true)
             .vscroll(true)
             .default_open(false)
             .show(self.egui_state.egui_ctx(), |ui| {
-                GuiGenerator::update_ui(ui, &mut self.gui_descriptor);
+                GuiGenerator::update_ui(ui, &mut gui_data);
             });
-        self.update_gui_uniform(queue);
+        self.update_gui_uniform(queue, gui_data);
 
         let full_output = self.egui_state.egui_ctx().end_pass();
         self.egui_state
@@ -207,7 +200,7 @@ impl GuiState {
         );
 
         for id in &self.delta.as_mut().unwrap().free {
-            self.renderer.free_texture(id)
+            self.renderer.free_texture(id);
         }
     }
 }
