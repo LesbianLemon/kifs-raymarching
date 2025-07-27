@@ -3,8 +3,8 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 pub trait Num: num_traits::Num {}
 
 macro_rules! impl_num {
-    ($type:ty) => {
-        impl Num for $type {}
+    ($Type:ty) => {
+        impl Num for $Type {}
     };
 }
 
@@ -39,345 +39,203 @@ pub const TWO_PI: f32 = 2. * PI;
 // Accuracy of 0.0001 is good enough for our graphics
 pub const EPSILON: f32 = 1.0e-4;
 
+macro_rules! impl_vector_extend {
+    ($Vector:ident{$(.$field:tt)+} -> $VectorNext:ident{$(.$field_next:tt)+}) => {
+        impl<T> $Vector<T> {
+            pub fn extend(self, x: T) -> $VectorNext<T> {
+                $VectorNext($(self.$field),+, x)
+            }
+        }
+    };
+}
+
+macro_rules! impl_vector_shrink {
+    ($Vector:ident{$(.$field:tt)+} -> $VectorPrev:ident{$(.$field_prev:tt)+}) => {
+        impl<T> $Vector<T> {
+            pub fn shrink(self) -> $VectorPrev<T> {
+                $VectorPrev($(self.$field_prev),+)
+            }
+        }
+    };
+}
+
+macro_rules! impl_vector_partial_eq {
+    ($Vector:ident{.$field_head:tt $(.$field_tail:tt)*}) => {
+        impl<T> PartialEq for $Vector<T>
+        where
+            T: Float,
+        {
+            fn eq(&self, other: &Self) -> bool {
+                let epsilon_t =
+                    T::from(EPSILON).expect("Can only compare values that can be cast to from f32");
+
+                (self.$field_head - other.$field_head).abs() < epsilon_t $(&& (self.$field_tail - other.$field_tail).abs() < epsilon_t)*
+            }
+        }
+    };
+}
+
+// Replace + with {plus} when stating traits passed to macro due to some weird Rust macro behaviours, which is impossible to get around
+macro_rules! impl_operation {
+    (
+        $Type:ident$(<$($TypeGeneric:ident),+>)?,
+        impl$(<$($Generic:ident $(: $HeadTrait:path $({plus} $TailTrait:path)*)?),*>)? $OpTrait:ident$(<$($TraitGeneric:ty),+>)?::$op_method:ident($($argument:ident $(: $ArgumentType:ty)?),*) -> $OutputType:ty {
+            $return:expr
+        }
+    ) => {
+        impl$(<$($Generic $(: $HeadTrait $(+ $TailTrait)*)?),+>)? $OpTrait$(<$($TraitGeneric),*>)? for $Type$(<$($TypeGeneric),+>)?
+        {
+            type Output = $OutputType;
+
+            fn $op_method($($argument $(: $ArgumentType)?),*) -> Self::Output {
+                $return
+            }
+        }
+    };
+}
+
+#[allow(dead_code)]
+enum ComponentOperationType {
+    // Operations like Neg which act like (x, y, ...) |-> (op(x), op(y), ...)
+    Unary,
+    // Operations like Add which act like ((x1, y1, ...), (x2, y2, ...)) |-> (op(x1, x2), op(y1, y2), ...)
+    InternalBinary,
+    // Operations like left multiplication with scalar which act like (c, (x2, y2, ...)) |-> (op(c, x2), op(c, y2), ...)
+    ExternalBinaryLeft,
+    // Operations like right multiplication with scalar which act like ((x1, y1, ...), c) |-> (op(x1, c), op(y1, c), ...)
+    ExternalBinaryRight,
+}
+
+macro_rules! impl_component_operation {
+    (
+        $(<$($Generic:ident $(: $HeadTrait:path $({plus} $TailTrait:path)*)?),*>,)?
+        $Type:ident$(<$($ComponentGeneric:ident),+>)?$({$(.$field:tt)+})?,
+        $OpTrait:ident::$op_method:ident,
+        ComponentOperationType::Unary
+    ) => {
+        impl_operation!(
+            $Type$(<$($ComponentGeneric),+>)?,
+            impl$(<$($Generic $(: $HeadTrait $({plus} $TailTrait)*)?),+>)? $OpTrait::$op_method(self) -> Self {
+                Self{
+                    $($($field: $OpTrait::$op_method(self.$field)),+)?
+                }
+            }
+        );
+    };
+    (
+        $(<$($Generic:ident $(: $HeadTrait:path $({plus} $TailTrait:path)*)?),*>,)?
+        $Type:ident$(<$($ComponentGeneric:ident),+>)?$({$(.$field:tt)+})?,
+        $OpTrait:ident::$op_method:ident,
+        ComponentOperationType::InternalBinary
+    ) => {
+        impl_operation!(
+            $Type$(<$($ComponentGeneric),+>)?,
+            impl$(<$($Generic $(: $HeadTrait $({plus} $TailTrait)*)?),+>)? $OpTrait<$Type$(<$($ComponentGeneric),+>)?>::$op_method(self, rhs: Self) -> Self {
+                Self{
+                    $($($field: $OpTrait::$op_method(self.$field, rhs.$field)),+)?
+                }
+            }
+        );
+    };
+    (
+        $(<$($Generic:ident $(: $HeadTrait:path $({plus} $TailTrait:path)*)?),*>,)?
+        $TypeLeft:ident$(<$($ComponentGenericLeft:ident),+>)?,
+        $TypeRight:ident$(<$($ComponentGenericRight:ident),+>)?$({$(.$field:tt)+})?,
+        $OpTrait:ident::$op_method:ident,
+        ComponentOperationType::ExternalBinaryLeft
+    ) => {
+        impl_operation!(
+            $TypeLeft$(<$($ComponentGenericLeft),+>)?,
+            impl$(<$($Generic $(: $HeadTrait $({plus} $TailTrait)*)?),+>)? $OpTrait<$TypeRight$(<$($ComponentGenericRight),+>)?>::$op_method(self, rhs: $TypeRight$(<$($ComponentGenericRight),+>)?) -> $TypeRight$(<$($ComponentGenericRight),+>)? {
+                $TypeRight{
+                    $($($field: $OpTrait::$op_method(self, rhs.$field)),+)?
+                }
+            }
+        );
+    };
+    (
+        $(<$($Generic:ident $(: $HeadTrait:path $({plus} $TailTrait:path)*)?),*>,)?
+        $TypeLeft:ident$(<$($ComponentGenericLeft:ident),+>)?$({$(.$field:tt)+})?,
+        $TypeRight:ident$(<$($ComponentGenericRight:ident),+>)?,
+        $OpTrait:ident::$op_method:ident,
+        ComponentOperationType::ExternalBinaryRight
+    ) => {
+        impl_operation!(
+            $TypeLeft$(<$($ComponentGenericLeft),+>)?,
+            impl$(<$($Generic $(: $HeadTrait $({plus} $TailTrait)*)?),+>)? $OpTrait<$TypeRight$(<$($ComponentGenericRight),+>)?>::$op_method(self, rhs: $TypeRight$(<$($ComponentGenericRight),+>)?) -> Self {
+                Self{
+                    $($($field: $OpTrait::$op_method(self.$field, rhs)),+)?
+                }
+            }
+        );
+    };
+}
+
+macro_rules! impl_vector_scalar_product {
+    ($Vector:ident{.$field_head:tt $(.$field_tail:tt)*}) => {
+        impl_operation!(
+            $Vector<T>,
+            impl<T: Add<T, Output = T> {plus} Mul<T, Output = T>> Mul<Self>::mul(self, rhs: Self) -> T {
+                self.$field_head * rhs.$field_head $(+ self.$field_tail * rhs.$field_tail)*
+            }
+        );
+    };
+}
+
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Vector2<T>(pub T, pub T);
 
-impl<T> Vector2<T> {
-    pub fn extend(self, x: T) -> Vector3<T> {
-        Vector3(self.0, self.1, x)
-    }
-}
+impl_vector_extend!(Vector2{ .0 .1 } -> Vector3{ .0 .1 .2 });
 
-impl<T> PartialEq for Vector2<T>
-where
-    T: Float,
-{
-    fn eq(&self, other: &Self) -> bool {
-        let epsilon_t =
-            T::from(EPSILON).expect("Can only compare values that can be cast to from f32");
+impl_vector_partial_eq!(Vector2{ .0 .1 });
 
-        (self.0 - other.0).abs() < epsilon_t && (self.1 - other.1).abs() < epsilon_t
-    }
-}
+impl_component_operation!(<T: Neg<Output = T>>, Vector2<T>{ .0 .1 }, Neg::neg, ComponentOperationType::Unary);
+impl_component_operation!(<T: Add<T, Output = T>>, Vector2<T>{ .0 .1 }, Add::add, ComponentOperationType::InternalBinary);
+impl_component_operation!(<T: Sub<T, Output = T>>, Vector2<T>{ .0 .1 }, Sub::sub, ComponentOperationType::InternalBinary);
+impl_component_operation!(<T: Mul<T, Output = T> {plus} Copy>, Vector2<T>{ .0 .1 }, T, Mul::mul, ComponentOperationType::ExternalBinaryRight);
+impl_component_operation!(<T: Div<T, Output = T> {plus} Copy>, Vector2<T>{ .0 .1 }, T, Div::div, ComponentOperationType::ExternalBinaryRight);
+impl_component_operation!(f32, Vector2<f32>{ .0 .1 }, Mul::mul, ComponentOperationType::ExternalBinaryLeft);
+impl_component_operation!(f64, Vector2<f64>{ .0 .1 }, Mul::mul, ComponentOperationType::ExternalBinaryLeft);
 
-impl<T> Add<Self> for Vector2<T>
-where
-    T: Add<T, Output = T>,
-{
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self(self.0 + rhs.0, self.1 + rhs.1)
-    }
-}
-
-impl<T> Sub<Self> for Vector2<T>
-where
-    T: Sub<T, Output = T>,
-{
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self(self.0 - rhs.0, self.1 - rhs.1)
-    }
-}
-
-impl<T> Mul<Self> for Vector2<T>
-where
-    T: Add<T, Output = T> + Mul<T, Output = T>,
-{
-    type Output = T;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        self.0 * rhs.0 + self.1 * rhs.1
-    }
-}
-
-impl<T> Mul<T> for Vector2<T>
-where
-    T: Mul<T, Output = T> + Copy,
-{
-    type Output = Self;
-
-    fn mul(self, rhs: T) -> Self::Output {
-        Self(self.0 * rhs, self.1 * rhs)
-    }
-}
-
-impl Mul<Vector2<f32>> for f32 {
-    type Output = Vector2<f32>;
-
-    fn mul(self, rhs: Vector2<f32>) -> Self::Output {
-        Vector2(self * rhs.0, self * rhs.1)
-    }
-}
-
-impl Mul<Vector2<f64>> for f64 {
-    type Output = Vector2<f64>;
-
-    fn mul(self, rhs: Vector2<f64>) -> Self::Output {
-        Vector2(self * rhs.0, self * rhs.1)
-    }
-}
-
-impl<T> Div<T> for Vector2<T>
-where
-    T: Div<T, Output = T> + Copy,
-{
-    type Output = Self;
-
-    fn div(self, rhs: T) -> Self::Output {
-        Self(self.0 / rhs, self.1 / rhs)
-    }
-}
-
-impl<T> Neg for Vector2<T>
-where
-    T: Neg<Output = T>,
-{
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        Self(-self.0, -self.1)
-    }
-}
+impl_vector_scalar_product!(Vector2{ .0 .1 });
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Vector3<T>(pub T, pub T, pub T);
 
-impl<T> Vector3<T> {
-    pub fn extend(self, x: T) -> Vector4<T> {
-        Vector4(self.0, self.1, self.2, x)
-    }
+impl_vector_extend!(Vector3{ .0 .1 .2 } -> Vector4{ .0 .1 .2 .3 });
+impl_vector_shrink!(Vector3{ .0 .1 .2 } -> Vector2{ .0 .1 });
 
-    pub fn shrink(self) -> Vector2<T> {
-        Vector2(self.0, self.1)
-    }
-}
+impl_vector_partial_eq!(Vector3{ .0 .1 .2 });
 
-impl<T> PartialEq for Vector3<T>
-where
-    T: Float,
-{
-    fn eq(&self, other: &Self) -> bool {
-        let epsilon_t =
-            T::from(EPSILON).expect("Can only compare values that can be cast to from f32");
+impl_component_operation!(<T: Neg<Output = T>>, Vector3<T>{ .0 .1 .2 }, Neg::neg, ComponentOperationType::Unary);
+impl_component_operation!(<T: Add<T, Output = T>>, Vector3<T>{ .0 .1 .2 }, Add::add, ComponentOperationType::InternalBinary);
+impl_component_operation!(<T: Sub<T, Output = T>>, Vector3<T>{ .0 .1 .2 }, Sub::sub, ComponentOperationType::InternalBinary);
+impl_component_operation!(<T: Mul<T, Output = T> {plus} Copy>, Vector3<T>{ .0 .1 .2 }, T, Mul::mul, ComponentOperationType::ExternalBinaryRight);
+impl_component_operation!(<T: Div<T, Output = T> {plus} Copy>, Vector3<T>{ .0 .1 .2 }, T, Div::div, ComponentOperationType::ExternalBinaryRight);
+impl_component_operation!(f32, Vector3<f32>{ .0 .1 .2 }, Mul::mul, ComponentOperationType::ExternalBinaryLeft);
+impl_component_operation!(f64, Vector3<f64>{ .0 .1 .2 }, Mul::mul, ComponentOperationType::ExternalBinaryLeft);
 
-        (self.0 - other.0).abs() < epsilon_t
-            && (self.1 - other.1).abs() < epsilon_t
-            && (self.2 - other.2).abs() < epsilon_t
-    }
-}
-
-impl<T> Add<Self> for Vector3<T>
-where
-    T: Add<T, Output = T>,
-{
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
-    }
-}
-
-impl<T> Sub<Self> for Vector3<T>
-where
-    T: Sub<T, Output = T>,
-{
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self(self.0 - rhs.0, self.1 - rhs.1, self.2 - rhs.2)
-    }
-}
-
-impl<T> Mul<Self> for Vector3<T>
-where
-    T: Add<T, Output = T> + Mul<T, Output = T>,
-{
-    type Output = T;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        self.0 * rhs.0 + self.1 * rhs.1 + self.2 * rhs.2
-    }
-}
-
-impl<T> Mul<T> for Vector3<T>
-where
-    T: Mul<T, Output = T> + Copy,
-{
-    type Output = Self;
-
-    fn mul(self, rhs: T) -> Self::Output {
-        Self(self.0 * rhs, self.1 * rhs, self.2 * rhs)
-    }
-}
-
-impl Mul<Vector3<f32>> for f32 {
-    type Output = Vector3<f32>;
-
-    fn mul(self, rhs: Vector3<f32>) -> Self::Output {
-        Vector3(self * rhs.0, self * rhs.1, self * rhs.2)
-    }
-}
-
-impl Mul<Vector3<f64>> for f64 {
-    type Output = Vector3<f64>;
-
-    fn mul(self, rhs: Vector3<f64>) -> Self::Output {
-        Vector3(self * rhs.0, self * rhs.1, self * rhs.2)
-    }
-}
-
-impl<T> Div<T> for Vector3<T>
-where
-    T: Div<T, Output = T> + Copy,
-{
-    type Output = Self;
-
-    fn div(self, rhs: T) -> Self::Output {
-        Self(self.0 / rhs, self.1 / rhs, self.2 / rhs)
-    }
-}
-
-impl<T> Neg for Vector3<T>
-where
-    T: Neg<Output = T>,
-{
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        Self(-self.0, -self.1, -self.2)
-    }
-}
+impl_vector_scalar_product!(Vector3{ .0 .1 .2 });
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Vector4<T>(pub T, pub T, pub T, pub T);
 
-impl<T> Vector4<T> {
-    pub fn shrink(self) -> Vector3<T> {
-        Vector3(self.0, self.1, self.2)
-    }
-}
+impl_vector_shrink!(Vector4{ .0 .1 .2 .3 } -> Vector3{ .0 .1 .2 });
 
-impl<T> PartialEq for Vector4<T>
-where
-    T: Float,
-{
-    fn eq(&self, other: &Self) -> bool {
-        let epsilon_t =
-            T::from(EPSILON).expect("Can only compare values that can be cast to from f32");
+impl_vector_partial_eq!(Vector4{ .0 .1 .2 .3 });
 
-        (self.0 - other.0).abs() < epsilon_t
-            && (self.1 - other.1).abs() < epsilon_t
-            && (self.2 - other.2).abs() < epsilon_t
-            && (self.3 - other.3).abs() < epsilon_t
-    }
-}
+impl_component_operation!(<T: Neg<Output = T>>, Vector4<T>{ .0 .1 .2 .3 }, Neg::neg, ComponentOperationType::Unary);
+impl_component_operation!(<T: Add<T, Output = T>>, Vector4<T>{ .0 .1 .2 .3 }, Add::add, ComponentOperationType::InternalBinary);
+impl_component_operation!(<T: Sub<T, Output = T>>, Vector4<T>{ .0 .1 .2 .3 }, Sub::sub, ComponentOperationType::InternalBinary);
+impl_component_operation!(<T: Mul<T, Output = T> {plus} Copy>, Vector4<T>{ .0 .1 .2 .3 }, T, Mul::mul, ComponentOperationType::ExternalBinaryRight);
+impl_component_operation!(<T: Div<T, Output = T> {plus} Copy>, Vector4<T>{ .0 .1 .2 .3 }, T, Div::div, ComponentOperationType::ExternalBinaryRight);
+impl_component_operation!(f32, Vector4<f32>{ .0 .1 .2 .3 }, Mul::mul, ComponentOperationType::ExternalBinaryLeft);
+impl_component_operation!(f64, Vector4<f64>{ .0 .1 .2 .3 }, Mul::mul, ComponentOperationType::ExternalBinaryLeft);
 
-impl<T> Add<Self> for Vector4<T>
-where
-    T: Add<T, Output = T>,
-{
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self(
-            self.0 + rhs.0,
-            self.1 + rhs.1,
-            self.2 + rhs.2,
-            self.3 + rhs.3,
-        )
-    }
-}
-
-impl<T> Sub<Self> for Vector4<T>
-where
-    T: Sub<T, Output = T>,
-{
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self(
-            self.0 - rhs.0,
-            self.1 - rhs.1,
-            self.2 - rhs.2,
-            self.3 - rhs.3,
-        )
-    }
-}
-
-impl<T> Mul<Self> for Vector4<T>
-where
-    T: Add<T, Output = T> + Mul<T, Output = T>,
-{
-    type Output = T;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        self.0 * rhs.0 + self.1 * rhs.1 + self.2 * rhs.2 + self.3 * rhs.3
-    }
-}
-
-impl<T> Mul<T> for Vector4<T>
-where
-    T: Mul<T, Output = T> + Copy,
-{
-    type Output = Self;
-
-    fn mul(self, rhs: T) -> Self::Output {
-        Self(self.0 * rhs, self.1 * rhs, self.2 * rhs, self.3 * rhs)
-    }
-}
-
-impl Mul<Vector4<f32>> for f32 {
-    type Output = Vector4<f32>;
-
-    fn mul(self, rhs: Vector4<f32>) -> Self::Output {
-        Vector4(self * rhs.0, self * rhs.1, self * rhs.2, self * rhs.3)
-    }
-}
-
-impl Mul<Vector4<f64>> for f64 {
-    type Output = Vector4<f64>;
-
-    fn mul(self, rhs: Vector4<f64>) -> Self::Output {
-        Vector4(self * rhs.0, self * rhs.1, self * rhs.2, self * rhs.3)
-    }
-}
-
-impl<T> Div<T> for Vector4<T>
-where
-    T: Div<T, Output = T> + Copy,
-{
-    type Output = Self;
-
-    fn div(self, rhs: T) -> Self::Output {
-        Self(self.0 / rhs, self.1 / rhs, self.2 / rhs, self.3 / rhs)
-    }
-}
-
-impl<T> Neg for Vector4<T>
-where
-    T: Neg<Output = T>,
-{
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        Self(-self.0, -self.1, -self.2, -self.3)
-    }
-}
+impl_vector_scalar_product!(Vector4{ .0 .1 .2 .3 });
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Matrix3x3<T>(Vector3<T>, Vector3<T>, Vector3<T>);
-
-impl<T> PartialEq for Matrix3x3<T>
-where
-    T: Float,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0 && self.1 == other.1 && self.2 == other.2
-    }
-}
 
 impl<T> Matrix3x3<T> {
     pub fn from_columns(col1: Vector3<T>, col2: Vector3<T>, col3: Vector3<T>) -> Self {
@@ -411,27 +269,22 @@ impl<T> Matrix3x3<T> {
     }
 }
 
-impl<T> Add<Self> for Matrix3x3<T>
+impl<T> PartialEq for Matrix3x3<T>
 where
-    T: Add<T, Output = T>,
+    T: Float,
 {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1 == other.1 && self.2 == other.2
     }
 }
 
-impl<T> Sub<Self> for Matrix3x3<T>
-where
-    T: Sub<T, Output = T>,
-{
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self(self.0 - rhs.0, self.1 - rhs.1, self.2 - rhs.2)
-    }
-}
+impl_component_operation!(<T: Neg<Output = T>>, Matrix3x3<T>{ .0 .1 .2 }, Neg::neg, ComponentOperationType::Unary);
+impl_component_operation!(<T: Add<T, Output = T>>, Matrix3x3<T>{ .0 .1 .2 }, Add::add, ComponentOperationType::InternalBinary);
+impl_component_operation!(<T: Sub<T, Output = T>>, Matrix3x3<T>{ .0 .1 .2 }, Sub::sub, ComponentOperationType::InternalBinary);
+impl_component_operation!(<T: Mul<T, Output = T> {plus} Copy>, Matrix3x3<T>{ .0 .1 .2 }, T, Mul::mul, ComponentOperationType::ExternalBinaryRight);
+impl_component_operation!(<T: Div<T, Output = T> {plus} Copy>, Matrix3x3<T>{ .0 .1 .2 }, T, Div::div, ComponentOperationType::ExternalBinaryRight);
+impl_component_operation!(f32, Matrix3x3<f32>{ .0 .1 .2 }, Mul::mul, ComponentOperationType::ExternalBinaryLeft);
+impl_component_operation!(f64, Matrix3x3<f64>{ .0 .1 .2 }, Mul::mul, ComponentOperationType::ExternalBinaryLeft);
 
 impl<T> Mul<Self> for Matrix3x3<T>
 where
@@ -447,55 +300,6 @@ where
             Vector3(rows.0 * rhs.1, rows.1 * rhs.1, rows.2 * rhs.1),
             Vector3(rows.0 * rhs.2, rows.1 * rhs.2, rows.2 * rhs.2),
         )
-    }
-}
-
-impl<T> Mul<T> for Matrix3x3<T>
-where
-    T: Mul<T, Output = T> + Copy,
-{
-    type Output = Self;
-
-    fn mul(self, rhs: T) -> Self::Output {
-        Self(self.0 * rhs, self.1 * rhs, self.2 * rhs)
-    }
-}
-
-impl Mul<Matrix3x3<f32>> for f32 {
-    type Output = Matrix3x3<f32>;
-
-    fn mul(self, rhs: Matrix3x3<f32>) -> Self::Output {
-        Matrix3x3(self * rhs.0, self * rhs.1, self * rhs.2)
-    }
-}
-
-impl Mul<Matrix3x3<f64>> for f64 {
-    type Output = Matrix3x3<f64>;
-
-    fn mul(self, rhs: Matrix3x3<f64>) -> Self::Output {
-        Matrix3x3(self * rhs.0, self * rhs.1, self * rhs.2)
-    }
-}
-
-impl<T> Div<T> for Matrix3x3<T>
-where
-    T: Div<T, Output = T> + Copy,
-{
-    type Output = Self;
-
-    fn div(self, rhs: T) -> Self::Output {
-        Self(self.0 / rhs, self.1 / rhs, self.2 / rhs)
-    }
-}
-
-impl<T> Neg for Matrix3x3<T>
-where
-    T: Neg<Output = T>,
-{
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        Self(-self.0, -self.1, -self.2)
     }
 }
 
@@ -609,29 +413,9 @@ impl PartialEq for Radians {
     }
 }
 
-impl Add<Self> for Radians {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self::from_radians(self.radians() + rhs.radians())
-    }
-}
-
-impl Sub<Self> for Radians {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self::from_radians(self.radians() - rhs.radians())
-    }
-}
-
-impl Neg for Radians {
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        Self::from_radians(-self.radians())
-    }
-}
+impl_component_operation!(Radians{ .0 }, Neg::neg, ComponentOperationType::Unary);
+impl_component_operation!(Radians{ .0 }, Add::add, ComponentOperationType::InternalBinary);
+impl_component_operation!(Radians{ .0 }, Sub::sub, ComponentOperationType::InternalBinary);
 
 #[cfg(test)]
 mod tests {
