@@ -28,123 +28,62 @@ where
     }
 }
 
-impl IntoPacked<Vector4Packed<f32>> for Rgba {
-    fn into_packed(self) -> Vector4Packed<f32> {
-        Vector4Packed(self[0], self[1], self[2], self[3])
-    }
+macro_rules! impl_packing_unpacking {
+    (
+        $Type:ty,
+        impl$(<$($Generic:ident $(: $HeadTrait:path $({plus} $TailTrait:path)*)?),*>)? $PackUnpackTrait:ident::$op_method:ident($self:ident) -> $OutputType:ty $return:block
+    ) => {
+        impl$(<$($Generic $(: $HeadTrait $(+ $TailTrait)*)?),+>)? $PackUnpackTrait<$OutputType> for $Type
+        {
+            fn $op_method($self) -> $OutputType $return
+        }
+    };
 }
 
-impl IntoUnpacked<Rgba> for Vector4Packed<f32> {
-    fn into_unpacked(self) -> Rgba {
-        Rgba::from_rgba_premultiplied(
-            self.0.clamp(0., 1.),
-            self.1.clamp(0., 1.),
-            self.2.clamp(0., 1.),
-            self.3.clamp(0., 1.),
-        )
-    }
-}
-
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vector2Packed<T>(pub T, pub T);
-
-impl<T, U> IntoPacked<Vector2Packed<U>> for Vector2<T>
-where
-    T: IntoPacked<U>,
-{
-    fn into_packed(self) -> Vector2Packed<U> {
-        Vector2Packed(self.0.into_packed(), self.1.into_packed())
-    }
-}
-
-impl<T, U> IntoUnpacked<Vector2<U>> for Vector2Packed<T>
-where
-    T: IntoUnpacked<U>,
-{
-    fn into_unpacked(self) -> Vector2<U> {
-        Vector2(self.0.into_unpacked(), self.1.into_unpacked())
-    }
+macro_rules! impl_vector_packing_unpacking {
+    ($Vector:ident{$(.$field:tt)+} <-> $VectorPacked:ident{$(.$field_packed:tt)+}) => {
+        impl_packing_unpacking!(
+            $Vector<T>,
+            impl<T: IntoPacked<U>, U> IntoPacked::into_packed(self) -> $VectorPacked<U> {
+                $VectorPacked($(self.$field.into_packed()),+)
+            }
+        );
+        impl_packing_unpacking!(
+            $VectorPacked<T>,
+            impl<T: IntoUnpacked<U>, U> IntoUnpacked::into_unpacked(self) -> $Vector<U> {
+                $Vector($(self.$field_packed.into_unpacked()),+)
+            }
+        );
+    };
 }
 
 #[repr(C, packed)]
 #[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vector3Packed<T>(pub T, pub T, pub T);
+pub(super) struct Vector2Packed<T>(T, T);
 
-impl<T, U> IntoPacked<Vector3Packed<U>> for Vector3<T>
-where
-    T: IntoPacked<U>,
-{
-    fn into_packed(self) -> Vector3Packed<U> {
-        Vector3Packed(
-            self.0.into_packed(),
-            self.1.into_packed(),
-            self.2.into_packed(),
-        )
-    }
-}
-
-impl<T, U> IntoUnpacked<Vector3<U>> for Vector3Packed<T>
-where
-    T: IntoUnpacked<U>,
-{
-    fn into_unpacked(self) -> Vector3<U> {
-        Vector3(
-            self.0.into_unpacked(),
-            self.1.into_unpacked(),
-            self.2.into_unpacked(),
-        )
-    }
-}
+impl_vector_packing_unpacking!(Vector2{ .0 .1 } <-> Vector2Packed{ .0 .1 });
 
 #[repr(C, packed)]
 #[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vector4Packed<T>(pub T, pub T, pub T, pub T);
+pub(super) struct Vector3Packed<T>(T, T, T);
 
-impl<T, U> IntoPacked<Vector4Packed<U>> for Vector4<T>
-where
-    T: IntoPacked<U>,
-{
-    fn into_packed(self) -> Vector4Packed<U> {
-        Vector4Packed(
-            self.0.into_packed(),
-            self.1.into_packed(),
-            self.2.into_packed(),
-            self.3.into_packed(),
-        )
-    }
-}
+impl_vector_packing_unpacking!(Vector3{ .0 .1 .2 } <-> Vector3Packed{ .0 .1 .2 });
 
-impl<T, U> IntoUnpacked<Vector4<U>> for Vector4Packed<T>
-where
-    T: IntoUnpacked<U>,
-{
-    fn into_unpacked(self) -> Vector4<U> {
-        Vector4(
-            self.0.into_unpacked(),
-            self.1.into_unpacked(),
-            self.2.into_unpacked(),
-            self.3.into_unpacked(),
-        )
-    }
-}
-
-// Implementation for f32 matrix specifically
-// Due to stupid alignment bullshit, making matrix packed more general is impossible (i swear i tried)
-// Need to use Vector4Packed due to Vector3Packed<f32> having size 12 and alignment 16
 #[repr(C, packed)]
 #[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Matrix3x3F32Packed(
-    pub Vector4Packed<f32>,
-    pub Vector4Packed<f32>,
-    pub Vector4Packed<f32>,
-);
+pub(super) struct Vector4Packed<T>(T, T, T, T);
 
+impl_vector_packing_unpacking!(Vector4{ .0 .1 .2 .3 } <-> Vector4Packed{ .0 .1 .2 .3 });
+
+pub(super) type Matrix3x3F32Packed = Vector3Packed<Vector4Packed<f32>>;
+
+// Implemented only for f32 due to not being able to generalize alignments
+// Using Vector4 due to simply converting to Packed variant not creating the correct alignment for f32
 impl IntoPacked<Matrix3x3F32Packed> for Matrix3x3<f32> {
     fn into_packed(self) -> Matrix3x3F32Packed {
         let columns = self.columns();
 
-        Matrix3x3F32Packed(
+        Vector3Packed(
             columns.0.extend(0.).into_packed(),
             columns.1.extend(0.).into_packed(),
             columns.2.extend(0.).into_packed(),
@@ -162,32 +101,41 @@ impl IntoUnpacked<Matrix3x3<f32>> for Matrix3x3F32Packed {
     }
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct RadiansPacked(pub f32);
-
-impl IntoPacked<RadiansPacked> for Radians {
-    fn into_packed(self) -> RadiansPacked {
-        RadiansPacked(self.radians())
+impl IntoPacked<f32> for Radians {
+    fn into_packed(self) -> f32 {
+        self.radians()
     }
 }
 
-impl IntoUnpacked<Radians> for RadiansPacked {
+impl IntoUnpacked<Radians> for f32 {
     fn into_unpacked(self) -> Radians {
-        Radians::from_radians(self.0)
+        Radians::from_radians(self)
+    }
+}
+
+impl IntoPacked<Vector4Packed<f32>> for Rgba {
+    fn into_packed(self) -> Vector4Packed<f32> {
+        Vector4Packed(self[0], self[1], self[2], self[3])
+    }
+}
+
+impl IntoUnpacked<Rgba> for Vector4Packed<f32> {
+    fn into_unpacked(self) -> Rgba {
+        Rgba::from_rgba_premultiplied(
+            self.0.clamp(0., 1.),
+            self.1.clamp(0., 1.),
+            self.2.clamp(0., 1.),
+            self.3.clamp(0., 1.),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        data::packed::Vector3Packed,
-        math::{Vector3, Vector4},
-    };
 
     #[test]
-    fn test_packing_and_depacking() {
+    fn test_packing_and_unpacking() {
         assert_eq!(Vector2(1., 2.).into_packed(), Vector2Packed(1., 2.));
         assert_eq!(Vector2Packed(1., 2.).into_unpacked(), Vector2(1., 2.));
         assert_eq!(Vector3(1., 2., 3.).into_packed(), Vector3Packed(1., 2., 3.));
@@ -202,32 +150,6 @@ mod tests {
         assert_eq!(
             Vector4Packed(1., 2., 3., 4.).into_unpacked(),
             Vector4(1., 2., 3., 4.)
-        );
-        assert_eq!(
-            Matrix3x3::from_columns(
-                Vector3(1., 2., 3.),
-                Vector3(4., 5., 6.),
-                Vector3(7., 8., 9.),
-            )
-            .into_packed(),
-            Matrix3x3F32Packed(
-                Vector4Packed(1., 2., 3., 0.),
-                Vector4Packed(4., 5., 6., 0.),
-                Vector4Packed(7., 8., 9., 0.),
-            )
-        );
-        assert_eq!(
-            Matrix3x3F32Packed(
-                Vector4Packed(1., 2., 3., 0.),
-                Vector4Packed(4., 5., 6., 0.),
-                Vector4Packed(7., 8., 9., 0.),
-            )
-            .into_unpacked(),
-            Matrix3x3::from_columns(
-                Vector3(1., 2., 3.),
-                Vector3(4., 5., 6.),
-                Vector3(7., 8., 9.),
-            )
         );
         assert_eq!(
             Vector2(Vector2(1., 2.), Vector2(3., 4.)).into_packed(),

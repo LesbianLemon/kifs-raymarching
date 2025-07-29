@@ -1,7 +1,5 @@
 use egui::{Color32, Rgba};
-use packed::{
-    IntoPacked as _, IntoUnpacked, Matrix3x3F32Packed, RadiansPacked, Vector2Packed, Vector4Packed,
-};
+use packed::{IntoPacked as _, IntoUnpacked, Vector2Packed, Vector3Packed, Vector4Packed};
 use scene::PrimitiveShape;
 use uniform::{UniformData, UniformDataDescriptor};
 use winit::dpi::PhysicalSize;
@@ -26,8 +24,8 @@ impl UniformData for SizeUniformData {}
 pub struct CameraUniformData {
     origin_distance: f32,
     min_distance: f32,
-    angles: Vector2Packed<RadiansPacked>,
-    matrix: Matrix3x3F32Packed,
+    angles: Vector2Packed<f32>,
+    matrix: Vector3Packed<Vector4Packed<f32>>,
 }
 
 impl UniformData for CameraUniformData {}

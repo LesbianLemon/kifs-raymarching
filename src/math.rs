@@ -79,80 +79,108 @@ macro_rules! impl_vector_partial_eq {
 // Replace + with {plus} when stating traits passed to macro due to some weird Rust macro behaviours, which is impossible to get around
 macro_rules! impl_operation {
     (
-        $Type:ident$(<$($TypeGeneric:ident),+>)?,
-        impl$(<$($Generic:ident $(: $HeadTrait:path $({plus} $TailTrait:path)*)?),*>)? $OpTrait:ident$(<$($TraitGeneric:ty),+>)?::$op_method:ident($($argument:ident $(: $ArgumentType:ty)?),*) -> $OutputType:ty {
-            $return:expr
-        }
+        $Type:ty,
+        impl$(<$($Generic:ident $(: $HeadTrait:path $({plus} $TailTrait:path)*)?),*>)? $OpTrait:ident$(<$($TraitGeneric:ty),+>)?::$op_method:ident($($argument:ident $(: $ArgumentType:ty)?),*) -> $OutputType:ty $return:block
     ) => {
-        impl$(<$($Generic $(: $HeadTrait $(+ $TailTrait)*)?),+>)? $OpTrait$(<$($TraitGeneric),*>)? for $Type$(<$($TypeGeneric),+>)?
+        impl$(<$($Generic $(: $HeadTrait $(+ $TailTrait)*)?),+>)? $OpTrait$(<$($TraitGeneric),*>)? for $Type
         {
             type Output = $OutputType;
 
-            fn $op_method($($argument $(: $ArgumentType)?),*) -> Self::Output {
-                $return
-            }
+            fn $op_method($($argument $(: $ArgumentType)?),*) -> Self::Output $return
         }
     };
 }
 
-macro_rules! impl_component_addition_subtraction {
-    ($Vector:ident$(<$Generic:ident>)?$({$(.$field:tt)+})?) => {
+macro_rules! impl_vector_componentwise_unary_operation {
+    (
+        $(<$ComponentGeneric:ident>)? $Vector:ident$(<$ComponentType:ty>)?$({$(.$field:tt)+})?,
+        $OpTrait:ident::$op_method:ident
+    ) => {
         impl_operation!(
-            $Vector$(<$Generic>)?,
-            impl$(<$Generic: Neg<Output = $Generic>>)? Neg::neg(self) -> Self {
-                Self($($(Neg::neg(self.$field)),+)?)
+            $Vector$(<$ComponentType>)?,
+            impl$(<$ComponentGeneric: $OpTrait<Output = $ComponentGeneric>>)? $OpTrait::$op_method(self) -> Self {
+                Self{
+                    $($($field: $OpTrait::$op_method(self.$field)),+)?
+                }
             }
         );
+    };
+}
+
+macro_rules! impl_vector_componentwise_internal_binary_operation {
+    (
+        $(<$ComponentGeneric:ident>)? $Vector:ident$(<$ComponentType:ty>)?$({$(.$field:tt)+})?,
+        $OpTrait:ident::$op_method:ident
+    ) => {
         impl_operation!(
-            $Vector$(<$Generic>)?,
-            impl$(<$Generic: Add<$Generic, Output = $Generic>>)? Add<$Vector$(<$Generic>)?>::add(self, rhs: Self) -> Self {
-                Self($($(Add::add(self.$field, rhs.$field)),+)?)
+            $Vector$(<$ComponentType>)?,
+            impl$(<$ComponentGeneric: $OpTrait<$ComponentGeneric, Output = $ComponentGeneric>>)? $OpTrait<$Vector$(<$ComponentType>)?>::$op_method(self, rhs: Self) -> Self {
+                Self{
+                    $($($field: $OpTrait::$op_method(self.$field, rhs.$field)),+)?
+                }
             }
         );
+    };
+}
+
+macro_rules! impl_vector_componentwise_left_external_binary_operation {
+    (
+        $(<$ComponentGeneric:ident>)? $Vector:ident$(<$ComponentType:ty>)?$({$(.$field:tt)+})?,
+        $ScalarType:ty,
+        $OpTrait:ident::$op_method:ident
+    ) => {
         impl_operation!(
-            $Vector$(<$Generic>)?,
-            impl$(<$Generic: Sub<$Generic, Output = $Generic>>)? Sub<$Vector$(<$Generic>)?>::sub(self, rhs: Self) -> Self {
-                Self($($(Sub::sub(self.$field, rhs.$field)),+)?)
+            $Vector$(<$ComponentType>)?,
+            impl$(<$ComponentGeneric: $OpTrait<$ScalarType, Output = $ComponentGeneric> {plus} Copy>)? $OpTrait<$ScalarType>::$op_method(self, rhs: $ScalarType) -> Self {
+                Self{
+                    $($($field: $OpTrait::$op_method(self.$field, rhs)),+)?
+                }
             }
         );
+    };
+}
+
+macro_rules! impl_vector_componentwise_right_external_binary_operation {
+    (
+        $ScalarType:ty,
+        $(<$ComponentGeneric:ident>)? $Vector:ident$(<$ComponentType:ty>)?$({$(.$field:tt)+})?,
+        $OpTrait:ident::$op_method:ident
+    ) => {
+        impl_operation!(
+            $ScalarType,
+            impl$(<$ComponentGeneric>)? $OpTrait<$Vector$(<$ComponentType>)?>::mul(self, rhs: $Vector$(<$ComponentType>)?) -> $Vector$(<$ComponentType>)? {
+                $Vector{
+                    $($($field: $OpTrait::$op_method(self, rhs.$field)),+)?
+                }
+            }
+        );
+    };
+}
+
+macro_rules! impl_vector_negation_addition_subtraction {
+    ($(<$ComponentGeneric:ident>)? $Vector:ident$(<$ComponentType:ty>)?$({$(.$field:tt)+})?) => {
+        impl_vector_componentwise_unary_operation!($(<$ComponentGeneric>)? $Vector$(<$ComponentType>)?$({$(.$field)+})?, Neg::neg);
+        impl_vector_componentwise_internal_binary_operation!($(<$ComponentGeneric>)? $Vector$(<$ComponentType>)?$({$(.$field)+})?, Add::add);
+        impl_vector_componentwise_internal_binary_operation!($(<$ComponentGeneric>)? $Vector$(<$ComponentType>)?$({$(.$field)+})?, Sub::sub);
     };
 }
 
 // Left multiplication with scalar is limited to f32 and f64 due to it not being possible to implement for generic type
-macro_rules! impl_scalar_operations {
-    ($Vector:ident<$Generic:ident>$({$(.$field:tt)+})?) => {
-        impl_operation!(
-            $Vector<$Generic>,
-            impl<$Generic: Mul<$Generic, Output = $Generic> {plus} Copy> Mul<$Generic>::mul(self, rhs: $Generic) -> Self {
-                Self($($(Mul::mul(self.$field, rhs)),+)?)
-            }
-        );
-        impl_operation!(
-            $Vector<$Generic>,
-            impl<$Generic: Div<$Generic, Output = $Generic> {plus} Copy> Div<$Generic>::div(self, rhs: $Generic) -> Self {
-                Self($($(Div::div(self.$field, rhs)),+)?)
-            }
-        );
-        impl_operation!(
-            f32,
-            impl Mul<$Vector<f32>>::mul(self, rhs: $Vector<f32>) -> $Vector<f32> {
-                $Vector($($(Mul::mul(self, rhs.$field)),+)?)
-            }
-        );
-        impl_operation!(
-            f64,
-            impl Mul<$Vector<f64>>::mul(self, rhs: $Vector<f64>) -> $Vector<f64> {
-                $Vector($($(Mul::mul(self, rhs.$field)),+)?)
-            }
-        );
+macro_rules! impl_vector_scalar_operations {
+    ($(<$ComponentGeneric:ident>)? $Vector:ident<$ComponentType:ty>$({$(.$field:tt)+})?) => {
+        impl_vector_componentwise_left_external_binary_operation!($(<$ComponentGeneric>)? $Vector<$ComponentType>$({$(.$field)+})?, $ComponentType, Mul::mul);
+        impl_vector_componentwise_left_external_binary_operation!($(<$ComponentGeneric>)? $Vector<$ComponentType>$({$(.$field)+})?, $ComponentType, Div::div);
+
+        impl_vector_componentwise_right_external_binary_operation!(f32, $Vector<f32>$({$(.$field)+})?, Mul::mul);
+        impl_vector_componentwise_right_external_binary_operation!(f64, $Vector<f64>$({$(.$field)+})?, Mul::mul);
     };
 }
 
-macro_rules! impl_vector_scalar_product {
-    ($Vector:ident<$Generic:ident>$({.$field_head:tt $(.$field_tail:tt)*})?) => {
+macro_rules! impl_vector_dot_product {
+    ($(<$ComponentGeneric:ident>)? $Vector:ident<$ComponentType:ty>$({.$field_head:tt $(.$field_tail:tt)*})?) => {
         impl_operation!(
-            $Vector<$Generic>,
-            impl<$Generic: Add<$Generic, Output = $Generic> {plus} Mul<$Generic, Output = $Generic>> Mul<Self>::mul(self, rhs: Self) -> $Generic {
+            $Vector<$ComponentType>,
+            impl$(<$ComponentGeneric: Add<$ComponentGeneric, Output = $ComponentGeneric> {plus} Mul<$ComponentGeneric, Output = $ComponentGeneric>>)? Mul<Self>::mul(self, rhs: Self) -> $ComponentType {
                 $(self.$field_head * rhs.$field_head $(+ self.$field_tail * rhs.$field_tail)*)?
             }
         );
@@ -166,9 +194,9 @@ impl_vector_extend!(Vector2{ .0 .1 } -> Vector3{ .0 .1 .2 });
 
 impl_vector_partial_eq!(Vector2{ .0 .1 });
 
-impl_component_addition_subtraction!(Vector2<T>{ .0 .1 });
-impl_scalar_operations!(Vector2<T>{ .0 .1 });
-impl_vector_scalar_product!(Vector2<T>{ .0 .1 });
+impl_vector_negation_addition_subtraction!(<T> Vector2<T>{ .0 .1 });
+impl_vector_scalar_operations!(<T> Vector2<T>{ .0 .1 });
+impl_vector_dot_product!(<T> Vector2<T>{ .0 .1 });
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Vector3<T>(pub T, pub T, pub T);
@@ -178,9 +206,9 @@ impl_vector_shrink!(Vector3{ .0 .1 .2 } -> Vector2{ .0 .1 });
 
 impl_vector_partial_eq!(Vector3{ .0 .1 .2 });
 
-impl_component_addition_subtraction!(Vector3<T>{ .0 .1 .2 });
-impl_scalar_operations!(Vector3<T>{ .0 .1 .2 });
-impl_vector_scalar_product!(Vector3<T>{ .0 .1 .2 });
+impl_vector_negation_addition_subtraction!(<T> Vector3<T>{ .0 .1 .2 });
+impl_vector_scalar_operations!(<T> Vector3<T>{ .0 .1 .2 });
+impl_vector_dot_product!(<T> Vector3<T>{ .0 .1 .2 });
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Vector4<T>(pub T, pub T, pub T, pub T);
@@ -189,9 +217,9 @@ impl_vector_shrink!(Vector4{ .0 .1 .2 .3 } -> Vector3{ .0 .1 .2 });
 
 impl_vector_partial_eq!(Vector4{ .0 .1 .2 .3 });
 
-impl_component_addition_subtraction!(Vector4<T>{ .0 .1 .2 .3 });
-impl_scalar_operations!(Vector4<T>{ .0 .1 .2 .3 });
-impl_vector_scalar_product!(Vector4<T>{ .0 .1 .2 .3 });
+impl_vector_negation_addition_subtraction!(<T> Vector4<T>{ .0 .1 .2 .3 });
+impl_vector_scalar_operations!(<T> Vector4<T>{ .0 .1 .2 .3 });
+impl_vector_dot_product!(<T> Vector4<T>{ .0 .1 .2 .3 });
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Matrix3x3<T>(Vector3<T>, Vector3<T>, Vector3<T>);
@@ -237,8 +265,8 @@ where
     }
 }
 
-impl_component_addition_subtraction!(Matrix3x3<T>{ .0 .1 .2 });
-impl_scalar_operations!(Matrix3x3<T>{ .0 .1 .2 });
+impl_vector_negation_addition_subtraction!(<T> Matrix3x3<T>{ .0 .1 .2 });
+impl_vector_scalar_operations!(<T> Matrix3x3<T>{ .0 .1 .2 });
 
 impl<T> Mul<Self> for Matrix3x3<T>
 where
@@ -251,9 +279,21 @@ where
         let rhs_columns = rhs.columns();
 
         Self::from_rows(
-            Vector3(self_rows.0 * rhs_columns.0, self_rows.0 * rhs_columns.1, self_rows.0 * rhs_columns.2),
-            Vector3(self_rows.1 * rhs_columns.0, self_rows.1 * rhs_columns.1, self_rows.1 * rhs_columns.2),
-            Vector3(self_rows.2 * rhs_columns.0, self_rows.2 * rhs_columns.1, self_rows.2 * rhs_columns.2),
+            Vector3(
+                self_rows.0 * rhs_columns.0,
+                self_rows.0 * rhs_columns.1,
+                self_rows.0 * rhs_columns.2,
+            ),
+            Vector3(
+                self_rows.1 * rhs_columns.0,
+                self_rows.1 * rhs_columns.1,
+                self_rows.1 * rhs_columns.2,
+            ),
+            Vector3(
+                self_rows.2 * rhs_columns.0,
+                self_rows.2 * rhs_columns.1,
+                self_rows.2 * rhs_columns.2,
+            ),
         )
     }
 }
@@ -368,7 +408,7 @@ impl PartialEq for Radians {
     }
 }
 
-impl_component_addition_subtraction!(Radians{ .0 });
+impl_vector_negation_addition_subtraction!(Radians{ .0 });
 
 #[cfg(test)]
 mod tests {
@@ -407,7 +447,7 @@ mod tests {
     }
 
     #[test]
-    fn test_vector_scalar_product() {
+    fn test_vector_dot_product() {
         assert_eq!(Vector2(1, 2) * Vector2(2, -1), 0);
         assert_eq!(Vector3(1, 2, 3) * Vector3(1, 1, -1), 0);
         assert_eq!(Vector4(1, 2, 3, 4) * Vector4(-1, 1, 1, -1), 0);
