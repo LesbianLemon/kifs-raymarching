@@ -3,7 +3,11 @@ use egui_wgpu::{Renderer, ScreenDescriptor, wgpu};
 use egui_winit::{EventResponse, State as EguiState};
 use winit::{event::WindowEvent, window::Window};
 
-use crate::data::{GuiData, scene::PrimitiveShape, uniform::Uniform};
+use crate::data::{
+    GuiData,
+    scene::PrimitiveShape,
+    uniform::{UniformBuffer, UniformBufferDescriptor, UniformBufferInit},
+};
 
 struct GuiGenerator;
 
@@ -86,7 +90,8 @@ impl GuiGenerator {
 }
 
 pub struct GuiState {
-    gui_uniform: Uniform<GuiData>,
+    gui_data: GuiData,
+    gui_uniform_buffer: UniformBuffer<'static>,
     egui_state: EguiState,
     renderer: Renderer,
     tris: Option<Vec<ClippedPrimitive>>,
@@ -99,7 +104,11 @@ impl GuiState {
         device: &wgpu::Device,
         output_color_format: wgpu::TextureFormat,
     ) -> Self {
-        let gui_uniform = Uniform::create_uniform(device, GuiData::default(), Some("gui_uniform"));
+        let gui_data = GuiData::default();
+        let gui_uniform_buffer = device.create_uniform_buffer(&UniformBufferDescriptor {
+            label: Some("gui_uniform_buffer"),
+            data: gui_data,
+        });
 
         let egui_state = EguiState::new(
             Context::default(),
@@ -113,7 +122,8 @@ impl GuiState {
         let renderer = Renderer::new(device, output_color_format, None, 1, true);
 
         Self {
-            gui_uniform,
+            gui_data,
+            gui_uniform_buffer,
             egui_state,
             renderer,
             tris: None,
@@ -121,8 +131,12 @@ impl GuiState {
         }
     }
 
-    pub fn gui_uniform(&self) -> &Uniform<GuiData> {
-        &self.gui_uniform
+    pub fn gui_data(&self) -> GuiData {
+        self.gui_data
+    }
+
+    pub fn gui_uniform_buffer(&self) -> &UniformBuffer {
+        &self.gui_uniform_buffer
     }
 
     pub fn wants_pointer_input(&self) -> bool {
@@ -141,10 +155,6 @@ impl GuiState {
         self.egui_state.on_mouse_motion(delta);
     }
 
-    pub fn update_gui_uniform(&mut self, queue: &wgpu::Queue, new_gui_data: GuiData) {
-        self.gui_uniform.update_uniform(new_gui_data, queue);
-    }
-
     pub fn prerender(
         &mut self,
         window: &Window,
@@ -161,15 +171,14 @@ impl GuiState {
         let raw_input = self.egui_state.take_egui_input(window);
         self.egui_state.egui_ctx().begin_pass(raw_input);
 
-        let mut gui_data = self.gui_uniform.descriptor();
         egui::Window::new("Scene settings")
             .resizable(true)
             .vscroll(true)
             .default_open(false)
             .show(self.egui_state.egui_ctx(), |ui| {
-                GuiGenerator::update_ui(ui, &mut gui_data);
+                GuiGenerator::update_ui(ui, &mut self.gui_data);
             });
-        self.update_gui_uniform(queue, gui_data);
+        self.gui_uniform_buffer.update_buffer(queue, self.gui_data);
 
         let full_output = self.egui_state.egui_ctx().end_pass();
         self.egui_state

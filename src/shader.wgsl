@@ -17,8 +17,8 @@ struct CameraUniform {
     matrix: mat3x3<f32>,
 }
 
-@group(1)
-@binding(0)
+@group(0)
+@binding(1)
 var<uniform> camera: CameraUniform;
 
 struct GuiUniform {
@@ -27,8 +27,8 @@ struct GuiUniform {
     primitive_id: u32,
 }
 
-@group(2)
-@binding(0)
+@group(0)
+@binding(2)
 var<uniform> options: GuiUniform;
 
 struct VertexOutput {

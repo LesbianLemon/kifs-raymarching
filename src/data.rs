@@ -1,45 +1,41 @@
 use egui::{Color32, Rgba};
-use packed::{IntoPacked as _, IntoUnpacked, Vector2Packed, Vector3Packed, Vector4Packed};
-use scene::PrimitiveShape;
-use uniform::{UniformData, UniformDataDescriptor};
 use winit::dpi::PhysicalSize;
 
 use crate::math::{Matrix3x3, Radians, Vector2};
 
+pub mod buffer;
 pub mod packed;
 pub mod scene;
 pub mod uniform;
 
+use packed::{IntoPacked as _, IntoUnpacked, Vector2Packed, Vector3Packed, Vector4Packed};
+use scene::PrimitiveShape;
+use uniform::UniformBufferData;
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct SizeUniformData {
+pub struct SizePodData {
     width: u32,
     height: u32,
 }
 
-impl UniformData for SizeUniformData {}
-
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct CameraUniformData {
+pub struct CameraPodData {
     origin_distance: f32,
     min_distance: f32,
     angles: Vector2Packed<f32>,
     matrix: Vector3Packed<Vector4Packed<f32>>,
 }
 
-impl UniformData for CameraUniformData {}
-
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct GuiUniformData {
+pub struct GuiPodData {
     fractal_color: Vector4Packed<f32>,
     background_color: Vector4Packed<f32>,
     primitive_id: u32,
     _padding: [u32; 3],
 }
-
-impl UniformData for GuiUniformData {}
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct SizeData {
@@ -56,17 +52,17 @@ impl From<PhysicalSize<u32>> for SizeData {
     }
 }
 
-impl UniformDataDescriptor for SizeData {
-    type Data = SizeUniformData;
+impl UniformBufferData for SizeData {
+    type PodData = SizePodData;
 
-    fn into_uniform_data(self) -> SizeUniformData {
-        SizeUniformData {
+    fn into_pod(self) -> Self::PodData {
+        Self::PodData {
             width: self.width,
             height: self.height,
         }
     }
 
-    fn from_uniform_data(data: SizeUniformData) -> Self {
+    fn from_pod(data: Self::PodData) -> Self {
         Self {
             width: data.width,
             height: data.height,
@@ -74,7 +70,7 @@ impl UniformDataDescriptor for SizeData {
     }
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug)]
 pub struct CameraData {
     pub origin_distance: f32,
     pub min_distance: f32,
@@ -92,11 +88,21 @@ impl CameraData {
     }
 }
 
-impl UniformDataDescriptor for CameraData {
-    type Data = CameraUniformData;
+impl Default for CameraData {
+    fn default() -> Self {
+        Self {
+            origin_distance: 5.,
+            min_distance: 2.,
+            angles: Vector2(Radians::from_radians(0.), Radians::from_radians(0.)),
+        }
+    }
+}
 
-    fn into_uniform_data(self) -> CameraUniformData {
-        CameraUniformData {
+impl UniformBufferData for CameraData {
+    type PodData = CameraPodData;
+
+    fn into_pod(self) -> Self::PodData {
+        Self::PodData {
             origin_distance: self.origin_distance,
             min_distance: self.min_distance,
             angles: self.angles.into_packed(),
@@ -104,7 +110,7 @@ impl UniformDataDescriptor for CameraData {
         }
     }
 
-    fn from_uniform_data(data: CameraUniformData) -> Self {
+    fn from_pod(data: Self::PodData) -> Self {
         Self {
             origin_distance: data.origin_distance,
             min_distance: data.min_distance,
@@ -130,11 +136,11 @@ impl Default for GuiData {
     }
 }
 
-impl UniformDataDescriptor for GuiData {
-    type Data = GuiUniformData;
+impl UniformBufferData for GuiData {
+    type PodData = GuiPodData;
 
-    fn into_uniform_data(self) -> GuiUniformData {
-        GuiUniformData {
+    fn into_pod(self) -> Self::PodData {
+        Self::PodData {
             fractal_color: Rgba::from(self.fractal_color).into_packed(),
             background_color: Rgba::from(self.background_color).into_packed(),
             primitive_id: self.primitive_shape.id(),
@@ -142,7 +148,7 @@ impl UniformDataDescriptor for GuiData {
         }
     }
 
-    fn from_uniform_data(data: GuiUniformData) -> Self {
+    fn from_pod(data: Self::PodData) -> Self {
         Self {
             fractal_color: <Vector4Packed<f32> as IntoUnpacked<Rgba>>::into_unpacked(
                 data.fractal_color,

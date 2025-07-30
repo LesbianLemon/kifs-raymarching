@@ -1,115 +1,73 @@
 use egui_wgpu::wgpu::{self, util::DeviceExt as _};
 
-pub trait UniformData: bytemuck::Pod {}
+pub trait UniformBufferData: Copy + Clone {
+    type PodData: bytemuck::Pod;
 
-pub trait UniformDataDescriptor: Copy {
-    type Data: UniformData;
-
-    fn into_uniform_data(self) -> Self::Data;
-    fn from_uniform_data(data: Self::Data) -> Self;
+    fn into_pod(self) -> Self::PodData;
+    fn from_pod(pod_data: Self::PodData) -> Self;
 }
 
-#[derive(Debug)]
-pub struct Uniform<Descriptor: UniformDataDescriptor> {
-    descriptor: Descriptor,
+pub struct UniformBufferDescriptor<'a, Data>
+where
+    Data: UniformBufferData,
+{
+    pub label: wgpu::Label<'a>,
+    pub data: Data,
+}
+
+#[derive(Clone, Debug)]
+pub struct UniformBuffer<'a> {
+    label: wgpu::Label<'a>,
     buffer: wgpu::Buffer,
-    bind_group_layout: wgpu::BindGroupLayout,
-    bind_group: wgpu::BindGroup,
 }
 
-impl<Descriptor: UniformDataDescriptor> Uniform<Descriptor> {
-    pub fn descriptor(&self) -> Descriptor {
-        self.descriptor
+impl<'a> UniformBuffer<'a> {
+    pub fn label(&self) -> wgpu::Label<'a> {
+        self.label
     }
 
     pub fn buffer(&self) -> &wgpu::Buffer {
         &self.buffer
     }
 
-    pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
-        &self.bind_group_layout
-    }
-
-    pub fn bind_group(&self) -> &wgpu::BindGroup {
-        &self.bind_group
-    }
-}
-
-impl<Descriptor: UniformDataDescriptor> Uniform<Descriptor> {
-    pub fn create_uniform_buffer(
-        device: &wgpu::Device,
-        data: Descriptor::Data,
-        label: Option<&str>,
-    ) -> wgpu::Buffer {
-        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label,
-            contents: bytemuck::cast_slice(&[data]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        })
-    }
-
-    pub fn create_uniform_bind_group_layout(
-        device: &wgpu::Device,
-        label: Option<&str>,
-    ) -> wgpu::BindGroupLayout {
-        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-            label: label
-                .map(|label| format!("{label}_bind_group_layout"))
-                .as_deref(),
-        })
-    }
-
-    pub fn create_uniform_bind_group(
-        device: &wgpu::Device,
-        buffer: &wgpu::Buffer,
-        bind_group_layout: &wgpu::BindGroupLayout,
-        label: Option<&str>,
-    ) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: buffer.as_entire_binding(),
-            }],
-            label: label.map(|label| format!("{label}_bind_group")).as_deref(),
-        })
-    }
-
-    pub fn create_uniform(
-        device: &wgpu::Device,
-        descriptor: Descriptor,
-        label: Option<&str>,
-    ) -> Self {
-        let buffer = Self::create_uniform_buffer(device, descriptor.into_uniform_data(), label);
-        let bind_group_layout = Self::create_uniform_bind_group_layout(device, label);
-        let bind_group =
-            Self::create_uniform_bind_group(device, &buffer, &bind_group_layout, label);
-
-        Self {
-            descriptor,
-            buffer,
-            bind_group_layout,
-            bind_group,
-        }
-    }
-
-    pub fn update_uniform(&mut self, descriptor: Descriptor, queue: &wgpu::Queue) {
-        self.descriptor = descriptor;
-
+    pub fn update_buffer<Data>(&mut self, queue: &wgpu::Queue, new_data: Data)
+    where
+        Data: UniformBufferData,
+    {
         queue.write_buffer(
             &self.buffer,
             0,
-            bytemuck::cast_slice(&[self.descriptor.into_uniform_data()]),
+            bytemuck::cast_slice(&[new_data.into_pod()]),
         );
+    }
+}
+
+pub trait UniformBufferInit {
+    fn create_uniform_buffer<'a, Data>(
+        &self,
+        descriptor: &UniformBufferDescriptor<'a, Data>,
+    ) -> UniformBuffer<'a>
+    where
+        Data: UniformBufferData;
+}
+
+// implement functionality for foreign type using trait
+impl UniformBufferInit for wgpu::Device {
+    fn create_uniform_buffer<'a, Data>(
+        &self,
+        descriptor: &UniformBufferDescriptor<'a, Data>,
+    ) -> UniformBuffer<'a>
+    where
+        Data: UniformBufferData,
+    {
+        UniformBuffer {
+            label: descriptor.label,
+            // data: descriptor.data,
+            buffer: self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: descriptor.label,
+                contents: bytemuck::cast_slice(&[descriptor.data.into_pod()]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }),
+        }
     }
 }

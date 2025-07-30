@@ -1,61 +1,93 @@
 use egui_wgpu::wgpu;
 use winit::{dpi::PhysicalSize, window::Window};
 
-use crate::data::{CameraData, SizeData, uniform::Uniform};
+use crate::data::uniform::{UniformBuffer, UniformBufferDescriptor, UniformBufferInit};
+use crate::data::{CameraData, SizeData};
 use crate::math::{PI, Radians, Vector2};
 
 pub struct GraphicState {
-    size_uniform: Uniform<SizeData>,
-    camera_uniform: Uniform<CameraData>,
+    size_data: SizeData,
+    size_uniform_buffer: UniformBuffer<'static>,
+    camera_data: CameraData,
+    camera_uniform_buffer: UniformBuffer<'static>,
     camera_rotatable: bool,
 }
 
 impl GraphicState {
     pub fn new(window: &Window, device: &wgpu::Device) -> Self {
-        let size_uniform =
-            Uniform::create_uniform(device, window.inner_size().into(), Some("size_uniform"));
-        let camera_uniform = Uniform::create_uniform(
-            device,
-            CameraData {
-                origin_distance: 5.,
-                min_distance: 2.,
-                ..CameraData::default()
-            },
-            Some("camera_uniform"),
-        );
+        let size_data = window.inner_size().into();
+        let size_uniform_buffer = device.create_uniform_buffer(&UniformBufferDescriptor {
+            label: Some("size_uniform_buffer"),
+            data: size_data,
+        });
+
+        let camera_data = CameraData::default();
+        let camera_uniform_buffer = device.create_uniform_buffer(&UniformBufferDescriptor {
+            label: Some("camera_uniform_buffer"),
+            data: camera_data,
+        });
         let camera_rotatable = false;
 
         Self {
-            size_uniform,
-            camera_uniform,
+            size_data,
+            size_uniform_buffer,
+            camera_data,
+            camera_uniform_buffer,
             camera_rotatable,
         }
     }
 
-    pub fn size_uniform(&self) -> &Uniform<SizeData> {
-        &self.size_uniform
+    pub fn size_data(&self) -> SizeData {
+        self.size_data
     }
 
-    pub fn camera_uniform(&self) -> &Uniform<CameraData> {
-        &self.camera_uniform
+    pub fn size_uniform_buffer(&self) -> &UniformBuffer {
+        &self.size_uniform_buffer
+    }
+
+    pub fn camera_data(&self) -> CameraData {
+        self.camera_data
+    }
+
+    pub fn camera_uniform_buffer(&self) -> &UniformBuffer {
+        &self.camera_uniform_buffer
     }
 
     pub fn update_size(&mut self, queue: &wgpu::Queue, new_size: PhysicalSize<u32>) {
-        self.size_uniform
-            .update_uniform(SizeData::from(new_size), queue);
+        self.size_data = new_size.into();
+        self.size_uniform_buffer
+            .update_buffer(queue, self.size_data);
     }
 
     pub fn zoom_camera(&mut self, queue: &wgpu::Queue, distance: f32) {
-        let current_distance = self.camera_uniform.descriptor().origin_distance;
-        let min_distance = self.camera_uniform.descriptor().min_distance;
+        let current_distance = self.camera_data.origin_distance;
+        let min_distance = self.camera_data.min_distance;
 
-        self.camera_uniform.update_uniform(
-            CameraData {
-                origin_distance: f32::max(min_distance, current_distance - distance),
-                ..self.camera_uniform.descriptor()
-            },
-            queue,
-        );
+        self.camera_data = CameraData {
+            origin_distance: f32::max(min_distance, current_distance - distance),
+            ..self.camera_data
+        };
+        self.camera_uniform_buffer
+            .update_buffer(queue, self.camera_data);
+    }
+
+    pub fn rotate_camera(&mut self, queue: &wgpu::Queue, delta_phi: Radians, delta_theta: Radians) {
+        if !self.camera_rotatable {
+            return;
+        }
+
+        let angles = self.camera_data.angles;
+        let Vector2(new_phi, mut new_theta) = angles + Vector2(delta_phi, delta_theta);
+
+        // Limit theta on [-PI/2, PI/2]
+        new_theta = new_theta.clamp(-PI / 2., PI / 2.);
+
+        self.camera_data = CameraData {
+            angles: Vector2(new_phi.standardize(), new_theta),
+            ..self.camera_data
+        };
+        self.camera_uniform_buffer
+            .update_buffer(queue, self.camera_data);
     }
 
     pub fn enable_camera_rotation(&mut self) {
@@ -68,22 +100,6 @@ impl GraphicState {
 
     pub fn is_camera_rotatable(&self) -> bool {
         self.camera_rotatable
-    }
-
-    pub fn rotate_camera(&mut self, queue: &wgpu::Queue, delta_phi: Radians, delta_theta: Radians) {
-        let angles = self.camera_uniform.descriptor().angles;
-        let Vector2(new_phi, mut new_theta) = angles + Vector2(delta_phi, delta_theta);
-
-        // Limit theta on [-PI/2, PI/2]
-        new_theta = new_theta.clamp(-PI / 2., PI / 2.);
-
-        self.camera_uniform.update_uniform(
-            CameraData {
-                angles: Vector2(new_phi.standardize(), new_theta),
-                ..self.camera_uniform.descriptor()
-            },
-            queue,
-        );
     }
 
     pub fn render(&self, render_pass: &mut wgpu::RenderPass) {

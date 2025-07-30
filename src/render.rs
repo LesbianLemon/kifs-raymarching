@@ -9,16 +9,22 @@ use winit::{
     window::Window,
 };
 
-use crate::math::Radians;
+use crate::{
+    data::buffer::{BufferGroup, BufferGroupDescriptor, BufferGroupInit, BufferGroupLayoutEntry},
+    math::Radians,
+};
 
 pub mod graphics;
 pub mod gui;
 
+use graphics::GraphicState;
+use gui::GuiState;
+
 #[derive(Default)]
 pub struct RenderStateOptions {
-    power_preference: wgpu::PowerPreference,
-    required_features: wgpu::Features,
-    required_limits: wgpu::Limits,
+    pub power_preference: wgpu::PowerPreference,
+    pub required_features: wgpu::Features,
+    pub required_limits: wgpu::Limits,
 }
 
 pub struct RenderState {
@@ -27,8 +33,9 @@ pub struct RenderState {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    graphic_state: graphics::GraphicState,
-    gui_state: gui::GuiState,
+    graphic_state: GraphicState,
+    gui_state: GuiState,
+    uniform_group: BufferGroup<'static>,
     pipeline: wgpu::RenderPipeline,
 }
 
@@ -181,8 +188,25 @@ impl RenderState {
         let alpha_mode = Self::alpha_mode(&surface_capabilities);
         let config = Self::create_surface_config(&surface_format, &alpha_mode, window.inner_size());
 
-        let graphic_state = graphics::GraphicState::new(&window, &device);
-        let gui_state = gui::GuiState::new(&window, &device, surface_format);
+        let graphic_state = GraphicState::new(&window, &device);
+        let gui_state = GuiState::new(&window, &device, surface_format);
+        let uniform_group = device.create_buffer_group(&BufferGroupDescriptor {
+            label: Some("uniform_buffer_group"),
+            buffers: &[
+                graphic_state.size_uniform_buffer().buffer(),
+                graphic_state.camera_uniform_buffer().buffer(),
+                gui_state.gui_uniform_buffer().buffer(),
+            ],
+            layout_entry: BufferGroupLayoutEntry {
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        });
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("raymarching_shader"),
@@ -191,11 +215,7 @@ impl RenderState {
 
         let pipeline = Self::create_render_pipeline(
             &device,
-            &[
-                graphic_state.size_uniform().bind_group_layout(),
-                graphic_state.camera_uniform().bind_group_layout(),
-                gui_state.gui_uniform().bind_group_layout(),
-            ],
+            &[uniform_group.bind_group_layout()],
             &config,
             &shader,
         );
@@ -211,6 +231,7 @@ impl RenderState {
             config,
             graphic_state,
             gui_state,
+            uniform_group,
             pipeline,
         }
     }
@@ -324,9 +345,7 @@ impl RenderState {
             });
 
             render_pass.set_pipeline(&self.pipeline);
-            render_pass.set_bind_group(0, self.graphic_state.size_uniform().bind_group(), &[]);
-            render_pass.set_bind_group(1, self.graphic_state.camera_uniform().bind_group(), &[]);
-            render_pass.set_bind_group(2, self.gui_state.gui_uniform().bind_group(), &[]);
+            render_pass.set_bind_group(0, self.uniform_group.bind_group(), &[]);
 
             self.graphic_state.render(&mut render_pass);
             // Execute GUI rendering last so it stays on top of our graphics and because it consumes the render_pass
