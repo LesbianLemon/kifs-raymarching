@@ -2,7 +2,7 @@ use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, FromPrimitive)]
-pub enum PrimitiveShape {
+pub(crate) enum PrimitiveShape {
     #[default]
     Sphere = 0,
     Cylinder = 1,
@@ -14,13 +14,13 @@ pub enum PrimitiveShape {
 
 impl PrimitiveShape {
     #[must_use]
-    pub fn id(&self) -> u32 {
-        *self as u32
+    pub(crate) fn id(self) -> u32 {
+        self as u32
     }
 
     // Defaults to Sphere if the id is invalid
     #[must_use]
-    pub fn from_id(id: u32) -> Self {
+    pub(crate) fn from_id(id: u32) -> Self {
         match FromPrimitive::from_u32(id) {
             Some(shape) => shape,
             _ => PrimitiveShape::Sphere,

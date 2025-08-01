@@ -2,83 +2,78 @@ use egui_wgpu::wgpu;
 use std::num::NonZeroU32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct BufferGroupLayoutEntry {
-    pub visibility: wgpu::ShaderStages,
-    pub ty: wgpu::BindingType,
-    pub count: Option<NonZeroU32>,
+pub(crate) struct BufferGroupLayoutEntry {
+    pub(crate) visibility: wgpu::ShaderStages,
+    pub(crate) ty: wgpu::BindingType,
+    pub(crate) count: Option<NonZeroU32>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct BufferGroupDescriptor<'a> {
-    pub label: wgpu::Label<'a>,
-    pub buffers: &'a [&'a wgpu::Buffer],
-    pub entries: &'a [BufferGroupLayoutEntry],
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BufferGroupDescriptor<'a> {
+    pub(crate) label: wgpu::Label<'a>,
+    pub(crate) buffers: &'a [&'a wgpu::Buffer],
+    pub(crate) entries: &'a [BufferGroupLayoutEntry],
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct FixedEntryBufferGroupDescriptor<'a> {
-    pub label: wgpu::Label<'a>,
-    pub buffers: &'a [&'a wgpu::Buffer],
-    pub entry: BufferGroupLayoutEntry,
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FixedEntryBufferGroupDescriptor<'a> {
+    pub(crate) label: wgpu::Label<'a>,
+    pub(crate) buffers: &'a [&'a wgpu::Buffer],
+    pub(crate) entry: BufferGroupLayoutEntry,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct BufferGroup {
+#[derive(Clone, Debug)]
+pub(crate) struct BufferGroup {
     bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
 }
 
 impl BufferGroup {
     #[must_use]
-    pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
+    pub(crate) fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
         &self.bind_group_layout
     }
 
     #[must_use]
-    pub fn bind_group(&self) -> &wgpu::BindGroup {
+    pub(crate) fn bind_group(&self) -> &wgpu::BindGroup {
         &self.bind_group
     }
 }
 
 // Implement extra functionality for Iterator
-trait IteratorMapToVec {
-    fn map_to_vec<T, F>(self, f: F) -> Vec<T>
+trait IteratorMapToVec: Iterator + Sized {
+    fn map_to_vec<F, T>(self, f: F) -> Vec<T>
     where
-        Self: Iterator + Sized,
         F: FnMut(Self::Item) -> T,
     {
         self.map(f).collect::<Vec<_>>()
+    }
+
+    fn enumerate_map_to_vec<F, T>(self, f: F) -> Vec<T>
+    where
+        F: FnMut((usize, Self::Item)) -> T,
+    {
+        self.enumerate().map_to_vec(f)
     }
 }
 
 impl<T> IteratorMapToVec for T where T: Iterator {}
 
-// Implement extra functionality for Iterator
-trait IteratorEnumerateMapToVec {
-    fn enumerate_map_to_vec<T, F>(self, f: F) -> Vec<T>
-    where
-        Self: Iterator + Sized,
-        F: FnMut((usize, Self::Item)) -> T,
-    {
-        self.enumerate().map(f).collect::<Vec<_>>()
-    }
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BufferGroupLayoutDescriptor<'a> {
+    pub(crate) label: wgpu::Label<'a>,
+    pub(crate) buffers: &'a [&'a wgpu::Buffer],
+    pub(crate) entries: &'a [BufferGroupLayoutEntry],
 }
 
-impl<T> IteratorEnumerateMapToVec for T where T: Iterator {}
-
-pub struct BufferGroupLayoutDescriptor<'a> {
-    pub label: wgpu::Label<'a>,
-    pub buffers: &'a [&'a wgpu::Buffer],
-    pub entries: &'a [BufferGroupLayoutEntry],
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BufferGroupBindDescriptor<'a> {
+    pub(crate) label: wgpu::Label<'a>,
+    pub(crate) buffers: &'a [&'a wgpu::Buffer],
+    pub(crate) layout: &'a wgpu::BindGroupLayout,
 }
 
-pub struct BufferGroupBindDescriptor<'a> {
-    pub label: wgpu::Label<'a>,
-    pub buffers: &'a [&'a wgpu::Buffer],
-    pub layout: &'a wgpu::BindGroupLayout,
-}
-
-pub trait BufferGroupInit {
+pub(crate) trait BufferGroupInit {
     fn create_buffer_group_layout(
         &self,
         descriptor: &BufferGroupLayoutDescriptor,

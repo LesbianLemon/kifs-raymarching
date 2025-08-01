@@ -8,13 +8,14 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::util::error::ApplicationError;
+use crate::util::error::{ApplicationError, RenderStateUnconfiguredError};
 use crate::{
     render::{RenderState, RenderStateOptions},
     util::error::RenderError,
 };
 
 pub struct Application {
+    active: bool,
     state: Option<RenderState>,
     state_options: RenderStateOptions,
 }
@@ -23,6 +24,7 @@ impl Application {
     #[must_use]
     pub fn new(state_options: RenderStateOptions) -> Self {
         Self {
+            active: true,
             state: None,
             state_options,
         }
@@ -30,13 +32,26 @@ impl Application {
 
     /// ## Errors
     /// - `ApplicationError::EventLoop(EventLoopError)` when event loop creation failed or event loop terminated with an error
-    pub fn run(&mut self) -> Result<(), ApplicationError> {
-        let event_loop = EventLoop::new()?;
-        event_loop.set_control_flow(ControlFlow::Poll);
+    pub fn run(&mut self) {
+        match EventLoop::new() {
+            Ok(event_loop) => {
+                event_loop.set_control_flow(ControlFlow::Poll);
 
-        event_loop.run_app(self)?;
-
-        Ok(())
+                match event_loop.run_app(self) {
+                    Ok(()) => {
+                        Self::exit_message();
+                    }
+                    Err(error) => {
+                        Self::error_message(&error.into());
+                        Self::exit_message();
+                    }
+                }
+            }
+            Err(error) => {
+                Self::error_message(&error.into());
+                Self::exit_message();
+            }
+        }
     }
 
     #[must_use]
@@ -45,47 +60,51 @@ impl Application {
     }
 
     /// ## Errors
-    /// - `ApplicationError::Render(RenderError)` when rendering fails
+    /// - `ApplicationError::RenderStateUnconfigured(RenderStateUnconfiguredError)` when tried to render with unconfigured render state
+    /// - `ApplicationError::Render(RenderError)` when rendering failed
     fn render(&mut self) -> Result<(), ApplicationError> {
-        match self.state.as_mut() {
-            Some(state) => match state.render() {
-                Err(RenderError::Surface(
-                    wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated,
-                )) => {
-                    state.resize(state.size());
-                }
-                Err(RenderError::Surface(wgpu::SurfaceError::Timeout)) => {
-                    log::warn!("Surface timed out");
-                }
-                Err(error) => {
-                    return Err(error.into());
-                }
-                _ => {}
-            },
-            None => {
-                log::warn!("Could not render due to unconfigured render state");
+        let state = self
+            .state
+            .as_mut()
+            .ok_or(ApplicationError::RenderStateUnconfigured(
+                RenderStateUnconfiguredError,
+            ))?;
+
+        match state.render() {
+            Err(RenderError::Surface(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated)) => {
+                state.resize(state.size());
             }
+            Err(RenderError::Surface(wgpu::SurfaceError::Timeout)) => {
+                log::warn!("Surface timed out");
+            }
+            Err(error) => {
+                return Err(error.into());
+            }
+            _ => {}
         }
 
         Ok(())
     }
 
-    fn exit(&mut self, event_loop: &ActiveEventLoop) {
+    fn deactivate(&mut self) {
+        self.active = false;
         // To avoid a segfault, force Rust to drop values before closing
         self.state = None;
-        event_loop.exit();
     }
 
-    fn exit_with_error(&mut self, error: &ApplicationError, event_loop: &ActiveEventLoop) {
+    fn error_message(error: &ApplicationError) {
         log::error!("Application came into an unrecoverable error: {error}");
-        self.exit(event_loop);
+    }
+
+    fn exit_message() {
+        log::info!("Exiting application...");
     }
 }
 
 impl ApplicationHandler for Application {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // Run once when the window is still not created and start the window event loop
-        if !self.is_configured() {
+        if !self.is_configured() && self.active {
             match event_loop.create_window(Window::default_attributes()) {
                 Ok(window) => {
                     let window = Arc::new(window);
@@ -96,10 +115,16 @@ impl ApplicationHandler for Application {
                             self.state = Some(state);
                             window.request_redraw();
                         }
-                        Err(error) => self.exit_with_error(&error.into(), event_loop),
+                        Err(error) => {
+                            Self::error_message(&error.into());
+                            event_loop.exit();
+                        }
                     }
                 }
-                Err(error) => self.exit_with_error(&error.into(), event_loop),
+                Err(error) => {
+                    Self::error_message(&error.into());
+                    event_loop.exit();
+                }
             }
         }
     }
@@ -110,39 +135,53 @@ impl ApplicationHandler for Application {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        if let Self {
-            state: Some(state), ..
-        } = self
-        {
-            if window_id != state.window().id() {
-                return;
-            }
-
-            state.window_event(&event);
-
-            match event {
-                WindowEvent::CloseRequested
-                | WindowEvent::KeyboardInput {
-                    event:
-                        KeyEvent {
-                            state: ElementState::Pressed,
-                            physical_key: PhysicalKey::Code(KeyCode::Escape),
-                            ..
-                        },
-                    ..
-                } => {
-                    self.exit(event_loop);
+        match self {
+            Self {
+                active: true,
+                state: Some(state),
+                ..
+            } => {
+                if window_id != state.window().id() {
+                    return;
                 }
-                WindowEvent::Resized(new_size) => state.resize(new_size),
-                WindowEvent::RedrawRequested => {
-                    if let Err(error) = self.render() {
-                        self.exit_with_error(&error, event_loop);
+
+                state.window_event(&event);
+
+                match event {
+                    WindowEvent::CloseRequested
+                    | WindowEvent::KeyboardInput {
+                        event:
+                            KeyEvent {
+                                state: ElementState::Pressed,
+                                physical_key: PhysicalKey::Code(KeyCode::Escape),
+                                ..
+                            },
+                        ..
+                    } => {
+                        self.deactivate();
+                        event_loop.exit();
                     }
+                    WindowEvent::Resized(new_size) => state.resize(new_size),
+                    WindowEvent::RedrawRequested => {
+                        if let Err(error) = self.render() {
+                            self.deactivate();
+                            Self::error_message(&error);
+                            event_loop.exit();
+                        }
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
-        } else {
-            log::warn!("Could not process window event due to unconfigured application");
+            Self {
+                active: true,
+                state: None,
+                ..
+            } => {
+                log::warn!(
+                    "Could not process window event due to unconfigured application. Continuing..."
+                );
+            }
+            Self { active: false, .. } => {}
         }
     }
 
@@ -152,13 +191,24 @@ impl ApplicationHandler for Application {
         _device_id: DeviceId,
         event: DeviceEvent,
     ) {
-        if let Self {
-            state: Some(state), ..
-        } = self
-        {
-            state.device_event(&event);
-        } else {
-            log::warn!("Could not process device event due to unconfigured application");
+        match self {
+            Self {
+                active: true,
+                state: Some(state),
+                ..
+            } => {
+                state.device_event(&event);
+            }
+            Self {
+                active: true,
+                state: None,
+                ..
+            } => {
+                log::warn!(
+                    "Could not process device event due to unconfigured application. Continuing..."
+                );
+            }
+            Self { active: false, .. } => {}
         }
     }
 }

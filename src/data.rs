@@ -3,10 +3,10 @@ use winit::dpi::PhysicalSize;
 
 use crate::util::math::{Matrix3x3, Radians, Vector2};
 
-pub mod buffer;
-pub mod packed;
-pub mod scene;
-pub mod uniform;
+pub(crate) mod buffer;
+pub(crate) mod packed;
+pub(crate) mod scene;
+pub(crate) mod uniform;
 
 use packed::{IntoPacked as _, IntoUnpacked, Vector2Packed, Vector3Packed, Vector4Packed};
 use scene::PrimitiveShape;
@@ -14,14 +14,14 @@ use uniform::UniformBufferData;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct SizePodData {
+pub(crate) struct SizePodData {
     width: u32,
     height: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct CameraPodData {
+pub(crate) struct CameraPodData {
     origin_distance: f32,
     min_distance: f32,
     angles: Vector2Packed<f32>,
@@ -30,7 +30,7 @@ pub struct CameraPodData {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct GuiPodData {
+pub(crate) struct GuiPodData {
     fractal_color: Vector4Packed<f32>,
     background_color: Vector4Packed<f32>,
     primitive_id: u32,
@@ -38,9 +38,9 @@ pub struct GuiPodData {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct SizeData {
-    pub width: u32,
-    pub height: u32,
+pub(crate) struct SizeData {
+    pub(crate) width: u32,
+    pub(crate) height: u32,
 }
 
 impl From<PhysicalSize<u32>> for SizeData {
@@ -71,10 +71,10 @@ impl UniformBufferData for SizeData {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct CameraData {
-    pub origin_distance: f32,
-    pub min_distance: f32,
-    pub angles: Vector2<Radians>,
+pub(crate) struct CameraData {
+    pub(crate) origin_distance: f32,
+    pub(crate) min_distance: f32,
+    pub(crate) angles: Vector2<Radians>,
 }
 
 impl CameraData {
@@ -120,10 +120,10 @@ impl UniformBufferData for CameraData {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct GuiData {
-    pub fractal_color: Color32,
-    pub background_color: Color32,
-    pub primitive_shape: PrimitiveShape,
+pub(crate) struct GuiData {
+    pub(crate) fractal_color: Color32,
+    pub(crate) background_color: Color32,
+    pub(crate) primitive_shape: PrimitiveShape,
 }
 
 impl Default for GuiData {

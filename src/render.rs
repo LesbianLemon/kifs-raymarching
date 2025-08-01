@@ -15,25 +15,25 @@ use crate::{
         BufferGroup, BufferGroupInit, BufferGroupLayoutEntry, FixedEntryBufferGroupDescriptor,
     },
     util::{
-        error::{RenderError, RequestAdapterError},
+        error::{RenderError, RenderStateError, RequestAdapterError},
         math::Radians,
     },
 };
 
-pub mod graphics;
-pub mod gui;
+pub(crate) mod graphics;
+pub(crate) mod gui;
 
 use graphics::GraphicState;
 use gui::GuiState;
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 pub struct RenderStateOptions {
     pub power_preference: wgpu::PowerPreference,
     pub required_features: wgpu::Features,
     pub required_limits: wgpu::Limits,
 }
 
-pub struct RenderState {
+pub(crate) struct RenderState {
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
@@ -180,13 +180,13 @@ impl RenderState {
     }
 
     /// ## Errors
-    /// - `RenderError::CreateSurface(CreateSurfaceError)` when surface creation failed
-    /// - `RenderError::RequestAdapter(RequestAdapterError)` when adapter request failed
-    /// - `RenderError::RequestDevice(RequestDeviceError)` when device request failed
-    pub async fn new(
+    /// - `RenderStateError::CreateSurface(CreateSurfaceError)` when surface creation failed
+    /// - `RenderStateError::RequestAdapter(RequestAdapterError)` when adapter request failed
+    /// - `RenderStateError::RequestDevice(RequestDeviceError)` when device request failed
+    pub(crate) async fn new(
         window: Arc<Window>,
         options: &RenderStateOptions,
-    ) -> Result<Self, RenderError> {
+    ) -> Result<Self, RenderStateError> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..wgpu::InstanceDescriptor::default()
@@ -256,16 +256,20 @@ impl RenderState {
     }
 
     #[must_use]
-    pub fn window(&self) -> &Window {
+    pub(crate) fn window(&self) -> &Window {
         &self.window
     }
 
     #[must_use]
-    pub fn size(&self) -> PhysicalSize<u32> {
+    pub(crate) fn size(&self) -> PhysicalSize<u32> {
         self.window.inner_size()
     }
 
-    pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
+    pub(crate) fn drop_window(self) {
+        drop(self.window);
+    }
+
+    pub(crate) fn resize(&mut self, new_size: PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
@@ -276,7 +280,7 @@ impl RenderState {
         }
     }
 
-    pub fn window_event(&mut self, event: &WindowEvent) {
+    pub(crate) fn window_event(&mut self, event: &WindowEvent) {
         // Check if event was for the GUI
         let response = self.gui_state.window_event(&self.window, event);
         if self.gui_state.wants_pointer_input() || response.consumed {
@@ -309,7 +313,7 @@ impl RenderState {
         }
     }
 
-    pub fn device_event(&mut self, event: &DeviceEvent) {
+    pub(crate) fn device_event(&mut self, event: &DeviceEvent) {
         // Right is positive x and down is positive y
         if let DeviceEvent::MouseMotion { delta: (dx, dy) } = event {
             self.gui_state.mouse_motion((*dx, *dy));
@@ -328,8 +332,8 @@ impl RenderState {
 
     /// ## Errors
     /// - `RenderError::Surface(SurfaceError)` when getting current surface texture failed
-    /// - `RenderError::GUINotConfigured(GUINotConfiguredError)` when tried to render GUI prior to configuring it
-    pub fn render(&mut self) -> Result<(), RenderError> {
+    /// - `RenderError::GUINotConfigured(GUINotConfiguredError)` when tried to render unconfigured GUI
+    pub(crate) fn render(&mut self) -> Result<(), RenderError> {
         let start_time = Instant::now();
 
         let surface_texture = self.surface.get_current_texture()?;

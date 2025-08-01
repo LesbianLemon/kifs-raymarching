@@ -1,6 +1,6 @@
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-pub trait Num: num_traits::Num {}
+pub(crate) trait Num: num_traits::Num {}
 
 macro_rules! impl_num {
     ($Type:ty) => {
@@ -23,7 +23,7 @@ impl_num!(isize);
 impl_num!(f32);
 impl_num!(f64);
 
-pub trait Float: num_traits::Float {}
+pub(crate) trait Float: num_traits::Float {}
 
 macro_rules! impl_float {
     ($type:ty) => {
@@ -34,15 +34,15 @@ macro_rules! impl_float {
 impl_float!(f32);
 impl_float!(f64);
 
-pub use std::f32::consts::PI;
-pub const TWO_PI: f32 = 2. * PI;
+pub(crate) use std::f32::consts::PI;
+pub(crate) const TWO_PI: f32 = 2. * PI;
 // Accuracy of 0.0001 is good enough for our graphics
-pub const EPSILON: f32 = 1.0e-4;
+pub(crate) const EPSILON: f32 = 1.0e-4;
 
 macro_rules! impl_vector_extend {
     ($Vector:ident{$(.$field:tt)+} -> $VectorNext:ident{$(.$field_next:tt)+}) => {
         impl<T> $Vector<T> {
-            pub fn extend(self, x: T) -> $VectorNext<T> {
+            pub(crate) fn extend(self, x: T) -> $VectorNext<T> {
                 $VectorNext($(self.$field),+, x)
             }
         }
@@ -52,7 +52,7 @@ macro_rules! impl_vector_extend {
 macro_rules! impl_vector_shrink {
     ($Vector:ident{$(.$field:tt)+} -> $VectorPrev:ident{$(.$field_prev:tt)+}) => {
         impl<T> $Vector<T> {
-            pub fn shrink(self) -> $VectorPrev<T> {
+            pub(crate) fn shrink(self) -> $VectorPrev<T> {
                 $VectorPrev($(self.$field_prev),+)
             }
         }
@@ -188,7 +188,7 @@ macro_rules! impl_vector_dot_product {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Vector2<T>(pub T, pub T);
+pub(crate) struct Vector2<T>(pub(crate) T, pub(crate) T);
 
 impl_vector_extend!(Vector2{ .0 .1 } -> Vector3{ .0 .1 .2 });
 
@@ -199,7 +199,7 @@ impl_vector_scalar_operations!(<T> Vector2<T>{ .0 .1 });
 impl_vector_dot_product!(<T> Vector2<T>{ .0 .1 });
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Vector3<T>(pub T, pub T, pub T);
+pub(crate) struct Vector3<T>(pub(crate) T, pub(crate) T, pub(crate) T);
 
 impl_vector_extend!(Vector3{ .0 .1 .2 } -> Vector4{ .0 .1 .2 .3 });
 impl_vector_shrink!(Vector3{ .0 .1 .2 } -> Vector2{ .0 .1 });
@@ -211,7 +211,7 @@ impl_vector_scalar_operations!(<T> Vector3<T>{ .0 .1 .2 });
 impl_vector_dot_product!(<T> Vector3<T>{ .0 .1 .2 });
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Vector4<T>(pub T, pub T, pub T, pub T);
+pub(crate) struct Vector4<T>(pub(crate) T, pub(crate) T, pub(crate) T, pub(crate) T);
 
 impl_vector_shrink!(Vector4{ .0 .1 .2 .3 } -> Vector3{ .0 .1 .2 });
 
@@ -222,22 +222,22 @@ impl_vector_scalar_operations!(<T> Vector4<T>{ .0 .1 .2 .3 });
 impl_vector_dot_product!(<T> Vector4<T>{ .0 .1 .2 .3 });
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Matrix3x3<T>(Vector3<T>, Vector3<T>, Vector3<T>);
+pub(crate) struct Matrix3x3<T>(Vector3<T>, Vector3<T>, Vector3<T>);
 
 impl<T> Matrix3x3<T> {
-    pub fn from_columns(col1: Vector3<T>, col2: Vector3<T>, col3: Vector3<T>) -> Self {
+    pub(crate) fn from_columns(col1: Vector3<T>, col2: Vector3<T>, col3: Vector3<T>) -> Self {
         Self(col1, col2, col3)
     }
 
     #[must_use]
-    pub fn columns(&self) -> (Vector3<T>, Vector3<T>, Vector3<T>)
+    pub(crate) fn columns(&self) -> (Vector3<T>, Vector3<T>, Vector3<T>)
     where
         T: Copy,
     {
         (self.0, self.1, self.2)
     }
 
-    pub fn from_rows(row1: Vector3<T>, row2: Vector3<T>, row3: Vector3<T>) -> Self {
+    pub(crate) fn from_rows(row1: Vector3<T>, row2: Vector3<T>, row3: Vector3<T>) -> Self {
         Self(
             Vector3(row1.0, row2.0, row3.0),
             Vector3(row1.1, row2.1, row3.1),
@@ -246,7 +246,7 @@ impl<T> Matrix3x3<T> {
     }
 
     #[must_use]
-    pub fn rows(&self) -> (Vector3<T>, Vector3<T>, Vector3<T>)
+    pub(crate) fn rows(&self) -> (Vector3<T>, Vector3<T>, Vector3<T>)
     where
         T: Copy,
     {
@@ -314,14 +314,14 @@ where
 }
 
 impl Matrix3x3<f32> {
-    pub const IDENTITY: Self = Self(
+    pub(crate) const IDENTITY: Self = Self(
         Vector3(1., 0., 0.),
         Vector3(0., 1., 0.),
         Vector3(0., 0., 1.),
     );
 
     #[must_use]
-    pub fn zero() -> Self {
+    pub(crate) fn zero() -> Self {
         Self(
             Vector3(0., 0., 0.),
             Vector3(0., 0., 0.),
@@ -330,7 +330,7 @@ impl Matrix3x3<f32> {
     }
 
     #[must_use]
-    pub fn rotation_matrix_x(angle: Radians) -> Self {
+    pub(crate) fn rotation_matrix_x(angle: Radians) -> Self {
         let Vector2(cos, sin) = angle.cos_sin();
 
         Self(
@@ -341,7 +341,7 @@ impl Matrix3x3<f32> {
     }
 
     #[must_use]
-    pub fn rotation_matrix_y(angle: Radians) -> Self {
+    pub(crate) fn rotation_matrix_y(angle: Radians) -> Self {
         let Vector2(cos, sin) = angle.cos_sin();
 
         Self(
@@ -352,7 +352,7 @@ impl Matrix3x3<f32> {
     }
 
     #[must_use]
-    pub fn rotation_matrix_z(angle: Radians) -> Self {
+    pub(crate) fn rotation_matrix_z(angle: Radians) -> Self {
         let Vector2(cos, sin) = angle.cos_sin();
 
         Self(
@@ -364,53 +364,53 @@ impl Matrix3x3<f32> {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Radians(f32);
+pub(crate) struct Radians(f32);
 
 impl Radians {
     #[must_use]
-    pub fn from_radians(radians: f32) -> Self {
+    pub(crate) fn from_radians(radians: f32) -> Self {
         Self(radians)
     }
 
     #[must_use]
-    pub fn from_degrees(degrees: f32) -> Self {
+    pub(crate) fn from_degrees(degrees: f32) -> Self {
         Self::from_radians((degrees / 180.0) * PI)
     }
 
     #[must_use]
-    pub fn radians(&self) -> f32 {
+    pub(crate) fn radians(self) -> f32 {
         self.0
     }
 
     #[must_use]
-    pub fn degrees(&self) -> f32 {
+    pub(crate) fn degrees(self) -> f32 {
         (self.radians() / PI) * 180.0
     }
 
     // Clamps its value to [min, max]
     #[must_use]
-    pub fn clamp(self, min: f32, max: f32) -> Self {
+    pub(crate) fn clamp(self, min: f32, max: f32) -> Self {
         Radians::from_radians(self.radians().clamp(min, max))
     }
 
     // Returns the same angle, but on [0, 2PI]
     #[must_use]
-    pub fn standardize(self) -> Self {
+    pub(crate) fn standardize(self) -> Self {
         Self(((self.radians() % TWO_PI) + TWO_PI) % TWO_PI)
     }
 
     #[must_use]
-    pub fn cos(&self) -> f32 {
+    pub(crate) fn cos(self) -> f32 {
         self.radians().cos()
     }
 
     #[must_use]
-    pub fn sin(&self) -> f32 {
+    pub(crate) fn sin(self) -> f32 {
         self.radians().sin()
     }
 
     #[must_use]
-    pub fn cos_sin(&self) -> Vector2<f32> {
+    pub(crate) fn cos_sin(self) -> Vector2<f32> {
         Vector2(self.radians().cos(), self.radians().sin())
     }
 }

@@ -1,4 +1,6 @@
+#![allow(dead_code)]
+
 pub mod application;
-pub mod data;
+pub(crate) mod data;
 pub mod render;
-pub mod util;
+pub(crate) mod util;

@@ -5,7 +5,8 @@ use crate::data::uniform::{UniformBuffer, UniformBufferDescriptor, UniformBuffer
 use crate::data::{CameraData, SizeData};
 use crate::util::math::{PI, Radians, Vector2};
 
-pub struct GraphicState {
+#[derive(Clone, Debug)]
+pub(crate) struct GraphicState {
     size_data: SizeData,
     size_uniform_buffer: UniformBuffer,
     camera_data: CameraData,
@@ -15,7 +16,7 @@ pub struct GraphicState {
 
 impl GraphicState {
     #[must_use]
-    pub fn new(window: &Window, device: &wgpu::Device) -> Self {
+    pub(crate) fn new(window: &Window, device: &wgpu::Device) -> Self {
         let size_data = window.inner_size().into();
         let size_uniform_buffer = device.create_uniform_buffer(&UniformBufferDescriptor {
             label: Some("size_uniform_buffer"),
@@ -39,32 +40,32 @@ impl GraphicState {
     }
 
     #[must_use]
-    pub fn size_data(&self) -> SizeData {
+    pub(crate) fn size_data(&self) -> SizeData {
         self.size_data
     }
 
     #[must_use]
-    pub fn size_uniform_buffer(&self) -> &UniformBuffer {
+    pub(crate) fn size_uniform_buffer(&self) -> &UniformBuffer {
         &self.size_uniform_buffer
     }
 
     #[must_use]
-    pub fn camera_data(&self) -> CameraData {
+    pub(crate) fn camera_data(&self) -> CameraData {
         self.camera_data
     }
 
     #[must_use]
-    pub fn camera_uniform_buffer(&self) -> &UniformBuffer {
+    pub(crate) fn camera_uniform_buffer(&self) -> &UniformBuffer {
         &self.camera_uniform_buffer
     }
 
-    pub fn update_size(&mut self, queue: &wgpu::Queue, new_size: PhysicalSize<u32>) {
+    pub(crate) fn update_size(&mut self, queue: &wgpu::Queue, new_size: PhysicalSize<u32>) {
         self.size_data = new_size.into();
         self.size_uniform_buffer
             .update_buffer(queue, self.size_data);
     }
 
-    pub fn zoom_camera(&mut self, queue: &wgpu::Queue, distance: f32) {
+    pub(crate) fn zoom_camera(&mut self, queue: &wgpu::Queue, distance: f32) {
         let current_distance = self.camera_data.origin_distance;
         let min_distance = self.camera_data.min_distance;
 
@@ -76,7 +77,12 @@ impl GraphicState {
             .update_buffer(queue, self.camera_data);
     }
 
-    pub fn rotate_camera(&mut self, queue: &wgpu::Queue, delta_phi: Radians, delta_theta: Radians) {
+    pub(crate) fn rotate_camera(
+        &mut self,
+        queue: &wgpu::Queue,
+        delta_phi: Radians,
+        delta_theta: Radians,
+    ) {
         if !self.camera_rotatable {
             return;
         }
@@ -95,20 +101,21 @@ impl GraphicState {
             .update_buffer(queue, self.camera_data);
     }
 
-    pub fn enable_camera_rotation(&mut self) {
+    pub(crate) fn enable_camera_rotation(&mut self) {
         self.camera_rotatable = true;
     }
 
-    pub fn disable_camera_rotation(&mut self) {
+    pub(crate) fn disable_camera_rotation(&mut self) {
         self.camera_rotatable = false;
     }
 
     #[must_use]
-    pub fn is_camera_rotatable(&self) -> bool {
+    pub(crate) fn is_camera_rotatable(&self) -> bool {
         self.camera_rotatable
     }
 
-    pub fn render(&self, render_pass: &mut wgpu::RenderPass) {
+    #[allow(clippy::unused_self)]
+    pub(crate) fn render(&self, render_pass: &mut wgpu::RenderPass) {
         render_pass.draw(0..3, 0..1);
     }
 }

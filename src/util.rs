@@ -1,2 +1,2 @@
-pub mod error;
-pub mod math;
+pub(crate) mod error;
+pub(crate) mod math;

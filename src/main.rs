@@ -10,9 +10,5 @@ fn main() {
         ..RenderStateOptions::default()
     };
     let mut app = Application::new(state_options);
-
-    match app.run() {
-        Ok(()) => log::info!("Event loop finished. Exiting program..."),
-        Err(err) => log::error!("{err}"),
-    }
+    app.run();
 }

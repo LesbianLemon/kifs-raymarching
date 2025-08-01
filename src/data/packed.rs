@@ -2,11 +2,11 @@ use egui::Rgba;
 
 use crate::util::math::{Matrix3x3, Num, Radians, Vector2, Vector3, Vector4};
 
-pub trait IntoPacked<Packed> {
+pub(crate) trait IntoPacked<Packed> {
     fn into_packed(self) -> Packed;
 }
 
-pub trait IntoUnpacked<Unpacked> {
+pub(crate) trait IntoUnpacked<Unpacked> {
     fn into_unpacked(self) -> Unpacked;
 }
 
@@ -59,23 +59,23 @@ macro_rules! impl_vector_packing_unpacking {
 
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub(super) struct Vector2Packed<T>(T, T);
+pub(crate) struct Vector2Packed<T>(T, T);
 
 impl_vector_packing_unpacking!(Vector2{ .0 .1 } <-> Vector2Packed{ .0 .1 });
 
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub(super) struct Vector3Packed<T>(T, T, T);
+pub(crate) struct Vector3Packed<T>(T, T, T);
 
 impl_vector_packing_unpacking!(Vector3{ .0 .1 .2 } <-> Vector3Packed{ .0 .1 .2 });
 
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub(super) struct Vector4Packed<T>(T, T, T, T);
+pub(crate) struct Vector4Packed<T>(T, T, T, T);
 
 impl_vector_packing_unpacking!(Vector4{ .0 .1 .2 .3 } <-> Vector4Packed{ .0 .1 .2 .3 });
 
-pub(super) type Matrix3x3F32Packed = Vector3Packed<Vector4Packed<f32>>;
+pub(crate) type Matrix3x3F32Packed = Vector3Packed<Vector4Packed<f32>>;
 
 // Implemented only for f32 due to not being able to generalize alignments
 // Using Vector4 due to simply converting to Packed variant not creating the correct alignment for f32

@@ -1,32 +1,33 @@
 use egui_wgpu::wgpu;
 
-pub trait UniformBufferData: Copy + Clone {
+pub(crate) trait UniformBufferData: Copy + Clone {
     type PodData: bytemuck::Pod;
 
     fn into_pod(self) -> Self::PodData;
     fn from_pod(pod_data: Self::PodData) -> Self;
 }
 
-pub struct UniformBufferDescriptor<'a, Data>
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct UniformBufferDescriptor<'a, Data>
 where
     Data: UniformBufferData,
 {
-    pub label: wgpu::Label<'a>,
-    pub data: Data,
+    pub(crate) label: wgpu::Label<'a>,
+    pub(crate) data: Data,
 }
 
 #[derive(Clone, Debug)]
-pub struct UniformBuffer {
+pub(crate) struct UniformBuffer {
     buffer: wgpu::Buffer,
 }
 
 impl UniformBuffer {
     #[must_use]
-    pub fn buffer(&self) -> &wgpu::Buffer {
+    pub(crate) fn buffer(&self) -> &wgpu::Buffer {
         &self.buffer
     }
 
-    pub fn update_buffer<Data>(&mut self, queue: &wgpu::Queue, new_data: Data)
+    pub(crate) fn update_buffer<Data>(&mut self, queue: &wgpu::Queue, new_data: Data)
     where
         Data: UniformBufferData,
     {
@@ -38,7 +39,7 @@ impl UniformBuffer {
     }
 }
 
-pub trait UniformBufferInit {
+pub(crate) trait UniformBufferInit {
     fn create_buffer_init(&self, descriptor: &wgpu::util::BufferInitDescriptor) -> wgpu::Buffer;
 
     fn create_uniform_buffer<Data>(

@@ -9,7 +9,7 @@ use crate::{
         scene::PrimitiveShape,
         uniform::{UniformBuffer, UniformBufferDescriptor, UniformBufferInit},
     },
-    util::error::GUINotConfiguredError,
+    util::error::GUIUnconfiguredError,
 };
 
 struct GuiGenerator;
@@ -92,7 +92,7 @@ impl GuiGenerator {
     }
 }
 
-pub struct GuiState {
+pub(crate) struct GuiState {
     gui_data: GuiData,
     gui_uniform_buffer: UniformBuffer,
     egui_state: EguiState,
@@ -103,7 +103,7 @@ pub struct GuiState {
 
 impl GuiState {
     #[must_use]
-    pub fn new(
+    pub(crate) fn new(
         window: &Window,
         device: &wgpu::Device,
         output_color_format: wgpu::TextureFormat,
@@ -137,34 +137,34 @@ impl GuiState {
     }
 
     #[must_use]
-    pub fn gui_data(&self) -> GuiData {
+    pub(crate) fn gui_data(&self) -> GuiData {
         self.gui_data
     }
 
     #[must_use]
-    pub fn gui_uniform_buffer(&self) -> &UniformBuffer {
+    pub(crate) fn gui_uniform_buffer(&self) -> &UniformBuffer {
         &self.gui_uniform_buffer
     }
 
     #[must_use]
-    pub fn wants_pointer_input(&self) -> bool {
+    pub(crate) fn wants_pointer_input(&self) -> bool {
         self.egui_state.egui_ctx().wants_pointer_input()
     }
 
     #[must_use]
-    pub fn wants_keyboard_input(&self) -> bool {
+    pub(crate) fn wants_keyboard_input(&self) -> bool {
         self.egui_state.egui_ctx().wants_keyboard_input()
     }
 
-    pub fn window_event(&mut self, window: &Window, event: &WindowEvent) -> EventResponse {
+    pub(crate) fn window_event(&mut self, window: &Window, event: &WindowEvent) -> EventResponse {
         self.egui_state.on_window_event(window, event)
     }
 
-    pub fn mouse_motion(&mut self, delta: (f64, f64)) {
+    pub(crate) fn mouse_motion(&mut self, delta: (f64, f64)) {
         self.egui_state.on_mouse_motion(delta);
     }
 
-    pub fn prerender(
+    pub(crate) fn prerender(
         &mut self,
         window: &Window,
         device: &wgpu::Device,
@@ -211,19 +211,19 @@ impl GuiState {
     }
 
     /// ## Errors
-    /// - `GUINotConfiguredError` when tried to render prior to first configuring the GUI
-    pub fn render(
+    /// - `GUINotConfiguredError` when tried to render unconfigured GUI
+    pub(crate) fn render(
         &mut self,
         render_pass: wgpu::RenderPass,
         screen_descriptor: &ScreenDescriptor,
-    ) -> Result<(), GUINotConfiguredError> {
+    ) -> Result<(), GUIUnconfiguredError> {
         self.renderer.render(
             &mut render_pass.forget_lifetime(),
-            self.tris.as_mut().ok_or(GUINotConfiguredError)?,
+            self.tris.as_mut().ok_or(GUIUnconfiguredError)?,
             screen_descriptor,
         );
 
-        for id in &self.delta.as_mut().ok_or(GUINotConfiguredError)?.free {
+        for id in &self.delta.as_mut().ok_or(GUIUnconfiguredError)?.free {
             self.renderer.free_texture(id);
         }
 
