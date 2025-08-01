@@ -3,16 +3,19 @@ use egui_wgpu::{Renderer, ScreenDescriptor, wgpu};
 use egui_winit::{EventResponse, State as EguiState};
 use winit::{event::WindowEvent, window::Window};
 
-use crate::data::{
-    GuiData,
-    scene::PrimitiveShape,
-    uniform::{UniformBuffer, UniformBufferDescriptor, UniformBufferInit},
+use crate::{
+    data::{
+        GuiData,
+        scene::PrimitiveShape,
+        uniform::{UniformBuffer, UniformBufferDescriptor, UniformBufferInit},
+    },
+    util::error::GUINotConfiguredError,
 };
 
 struct GuiGenerator;
 
 impl GuiGenerator {
-    fn update_ui(ui: &mut Ui, gui_descriptor: &mut GuiData) {
+    fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
         egui::Grid::new("main_grid")
             .num_columns(2)
             .spacing([40.0, 4.0])
@@ -43,35 +46,35 @@ impl GuiGenerator {
 
                 ui.label("Primitive shape");
                 egui::ComboBox::from_label("Shape")
-                    .selected_text(format!("{:?}", gui_descriptor.primitive_shape))
+                    .selected_text(format!("{:?}", gui_data.primitive_shape))
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
-                            &mut gui_descriptor.primitive_shape,
+                            &mut gui_data.primitive_shape,
                             PrimitiveShape::Sphere,
                             format!("{:?}", PrimitiveShape::Sphere),
                         );
                         ui.selectable_value(
-                            &mut gui_descriptor.primitive_shape,
+                            &mut gui_data.primitive_shape,
                             PrimitiveShape::Cylinder,
                             format!("{:?}", PrimitiveShape::Cylinder),
                         );
                         ui.selectable_value(
-                            &mut gui_descriptor.primitive_shape,
+                            &mut gui_data.primitive_shape,
                             PrimitiveShape::Box,
                             format!("{:?}", PrimitiveShape::Box),
                         );
                         ui.selectable_value(
-                            &mut gui_descriptor.primitive_shape,
+                            &mut gui_data.primitive_shape,
                             PrimitiveShape::Torus,
                             format!("{:?}", PrimitiveShape::Torus),
                         );
                         ui.selectable_value(
-                            &mut gui_descriptor.primitive_shape,
+                            &mut gui_data.primitive_shape,
                             PrimitiveShape::SierpinskiTetrahedron,
                             format!("{:?}", PrimitiveShape::SierpinskiTetrahedron),
                         );
                         ui.selectable_value(
-                            &mut gui_descriptor.primitive_shape,
+                            &mut gui_data.primitive_shape,
                             PrimitiveShape::Bunny,
                             format!("{:?}", PrimitiveShape::Bunny),
                         );
@@ -79,11 +82,11 @@ impl GuiGenerator {
                 ui.end_row();
 
                 ui.label("Fractal color");
-                ui.color_edit_button_srgba(&mut gui_descriptor.fractal_color);
+                ui.color_edit_button_srgba(&mut gui_data.fractal_color);
                 ui.end_row();
 
                 ui.label("Background color");
-                ui.color_edit_button_srgba(&mut gui_descriptor.background_color);
+                ui.color_edit_button_srgba(&mut gui_data.background_color);
                 ui.end_row();
             });
     }
@@ -91,7 +94,7 @@ impl GuiGenerator {
 
 pub struct GuiState {
     gui_data: GuiData,
-    gui_uniform_buffer: UniformBuffer<'static>,
+    gui_uniform_buffer: UniformBuffer,
     egui_state: EguiState,
     renderer: Renderer,
     tris: Option<Vec<ClippedPrimitive>>,
@@ -99,6 +102,7 @@ pub struct GuiState {
 }
 
 impl GuiState {
+    #[must_use]
     pub fn new(
         window: &Window,
         device: &wgpu::Device,
@@ -114,6 +118,7 @@ impl GuiState {
             Context::default(),
             ViewportId::ROOT,
             window,
+            #[allow(clippy::cast_possible_truncation)]
             Some(window.scale_factor() as f32),
             None,
             Some(1024),
@@ -131,18 +136,22 @@ impl GuiState {
         }
     }
 
+    #[must_use]
     pub fn gui_data(&self) -> GuiData {
         self.gui_data
     }
 
+    #[must_use]
     pub fn gui_uniform_buffer(&self) -> &UniformBuffer {
         &self.gui_uniform_buffer
     }
 
+    #[must_use]
     pub fn wants_pointer_input(&self) -> bool {
         self.egui_state.egui_ctx().wants_pointer_input()
     }
 
+    #[must_use]
     pub fn wants_keyboard_input(&self) -> bool {
         self.egui_state.egui_ctx().wants_keyboard_input()
     }
@@ -171,7 +180,7 @@ impl GuiState {
         let raw_input = self.egui_state.take_egui_input(window);
         self.egui_state.egui_ctx().begin_pass(raw_input);
 
-        egui::Window::new("Scene settings")
+        egui::Window::new("Settings Menu")
             .resizable(true)
             .vscroll(true)
             .default_open(false)
@@ -201,15 +210,23 @@ impl GuiState {
         self.delta = Some(full_output.textures_delta);
     }
 
-    pub fn render(&mut self, render_pass: wgpu::RenderPass, screen_descriptor: &ScreenDescriptor) {
+    /// ## Errors
+    /// - `GUINotConfiguredError` when tried to render prior to first configuring the GUI
+    pub fn render(
+        &mut self,
+        render_pass: wgpu::RenderPass,
+        screen_descriptor: &ScreenDescriptor,
+    ) -> Result<(), GUINotConfiguredError> {
         self.renderer.render(
             &mut render_pass.forget_lifetime(),
-            self.tris.as_mut().unwrap(),
+            self.tris.as_mut().ok_or(GUINotConfiguredError)?,
             screen_descriptor,
         );
 
-        for id in &self.delta.as_mut().unwrap().free {
+        for id in &self.delta.as_mut().ok_or(GUINotConfiguredError)?.free {
             self.renderer.free_texture(id);
         }
+
+        Ok(())
     }
 }

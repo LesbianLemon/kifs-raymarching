@@ -187,7 +187,7 @@ macro_rules! impl_vector_dot_product {
     };
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Vector2<T>(pub T, pub T);
 
 impl_vector_extend!(Vector2{ .0 .1 } -> Vector3{ .0 .1 .2 });
@@ -198,7 +198,7 @@ impl_vector_negation_addition_subtraction!(<T> Vector2<T>{ .0 .1 });
 impl_vector_scalar_operations!(<T> Vector2<T>{ .0 .1 });
 impl_vector_dot_product!(<T> Vector2<T>{ .0 .1 });
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Vector3<T>(pub T, pub T, pub T);
 
 impl_vector_extend!(Vector3{ .0 .1 .2 } -> Vector4{ .0 .1 .2 .3 });
@@ -210,7 +210,7 @@ impl_vector_negation_addition_subtraction!(<T> Vector3<T>{ .0 .1 .2 });
 impl_vector_scalar_operations!(<T> Vector3<T>{ .0 .1 .2 });
 impl_vector_dot_product!(<T> Vector3<T>{ .0 .1 .2 });
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Vector4<T>(pub T, pub T, pub T, pub T);
 
 impl_vector_shrink!(Vector4{ .0 .1 .2 .3 } -> Vector3{ .0 .1 .2 });
@@ -221,7 +221,7 @@ impl_vector_negation_addition_subtraction!(<T> Vector4<T>{ .0 .1 .2 .3 });
 impl_vector_scalar_operations!(<T> Vector4<T>{ .0 .1 .2 .3 });
 impl_vector_dot_product!(<T> Vector4<T>{ .0 .1 .2 .3 });
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Matrix3x3<T>(Vector3<T>, Vector3<T>, Vector3<T>);
 
 impl<T> Matrix3x3<T> {
@@ -229,6 +229,7 @@ impl<T> Matrix3x3<T> {
         Self(col1, col2, col3)
     }
 
+    #[must_use]
     pub fn columns(&self) -> (Vector3<T>, Vector3<T>, Vector3<T>)
     where
         T: Copy,
@@ -244,6 +245,7 @@ impl<T> Matrix3x3<T> {
         )
     }
 
+    #[must_use]
     pub fn rows(&self) -> (Vector3<T>, Vector3<T>, Vector3<T>)
     where
         T: Copy,
@@ -318,6 +320,7 @@ impl Matrix3x3<f32> {
         Vector3(0., 0., 1.),
     );
 
+    #[must_use]
     pub fn zero() -> Self {
         Self(
             Vector3(0., 0., 0.),
@@ -326,6 +329,7 @@ impl Matrix3x3<f32> {
         )
     }
 
+    #[must_use]
     pub fn rotation_matrix_x(angle: Radians) -> Self {
         let Vector2(cos, sin) = angle.cos_sin();
 
@@ -336,6 +340,7 @@ impl Matrix3x3<f32> {
         )
     }
 
+    #[must_use]
     pub fn rotation_matrix_y(angle: Radians) -> Self {
         let Vector2(cos, sin) = angle.cos_sin();
 
@@ -346,6 +351,7 @@ impl Matrix3x3<f32> {
         )
     }
 
+    #[must_use]
     pub fn rotation_matrix_z(angle: Radians) -> Self {
         let Vector2(cos, sin) = angle.cos_sin();
 
@@ -357,44 +363,53 @@ impl Matrix3x3<f32> {
     }
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Radians(f32);
 
 impl Radians {
+    #[must_use]
     pub fn from_radians(radians: f32) -> Self {
         Self(radians)
     }
 
+    #[must_use]
     pub fn from_degrees(degrees: f32) -> Self {
         Self::from_radians((degrees / 180.0) * PI)
     }
 
+    #[must_use]
     pub fn radians(&self) -> f32 {
         self.0
     }
 
+    #[must_use]
     pub fn degrees(&self) -> f32 {
         (self.radians() / PI) * 180.0
     }
 
     // Clamps its value to [min, max]
+    #[must_use]
     pub fn clamp(self, min: f32, max: f32) -> Self {
         Radians::from_radians(self.radians().clamp(min, max))
     }
 
     // Returns the same angle, but on [0, 2PI]
+    #[must_use]
     pub fn standardize(self) -> Self {
         Self(((self.radians() % TWO_PI) + TWO_PI) % TWO_PI)
     }
 
+    #[must_use]
     pub fn cos(&self) -> f32 {
         self.radians().cos()
     }
 
+    #[must_use]
     pub fn sin(&self) -> f32 {
         self.radians().sin()
     }
 
+    #[must_use]
     pub fn cos_sin(&self) -> Vector2<f32> {
         Vector2(self.radians().cos(), self.radians().sin())
     }

@@ -8,8 +8,11 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::error::ApplicationError;
-use crate::render::{RenderState, RenderStateOptions};
+use crate::util::error::ApplicationError;
+use crate::{
+    render::{RenderState, RenderStateOptions},
+    util::error::RenderError,
+};
 
 pub struct Application {
     state: Option<RenderState>,
@@ -17,6 +20,7 @@ pub struct Application {
 }
 
 impl Application {
+    #[must_use]
     pub fn new(state_options: RenderStateOptions) -> Self {
         Self {
             state: None,
@@ -24,30 +28,8 @@ impl Application {
         }
     }
 
-    fn is_configured(&self) -> bool {
-        self.state.is_some()
-    }
-
-    fn render(&mut self) -> Result<(), ApplicationError> {
-        if let Some(state) = self.state.as_mut() {
-            match state.render() {
-                Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                    state.resize(state.size());
-                }
-                Err(wgpu::SurfaceError::Timeout) => {
-                    log::warn!("Surface timed out");
-                }
-                Err(error) => {
-                    log::error!("UnrecoverableError: {error}");
-                    return Err(error.into());
-                }
-                _ => {}
-            }
-        }
-
-        Ok(())
-    }
-
+    /// ## Errors
+    /// - `ApplicationError::EventLoop(EventLoopError)` when event loop creation failed or event loop terminated with an error
     pub fn run(&mut self) -> Result<(), ApplicationError> {
         let event_loop = EventLoop::new()?;
         event_loop.set_control_flow(ControlFlow::Poll);
@@ -56,23 +38,69 @@ impl Application {
 
         Ok(())
     }
+
+    #[must_use]
+    fn is_configured(&self) -> bool {
+        self.state.is_some()
+    }
+
+    /// ## Errors
+    /// - `ApplicationError::Render(RenderError)` when rendering fails
+    fn render(&mut self) -> Result<(), ApplicationError> {
+        match self.state.as_mut() {
+            Some(state) => match state.render() {
+                Err(RenderError::Surface(
+                    wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated,
+                )) => {
+                    state.resize(state.size());
+                }
+                Err(RenderError::Surface(wgpu::SurfaceError::Timeout)) => {
+                    log::warn!("Surface timed out");
+                }
+                Err(error) => {
+                    return Err(error.into());
+                }
+                _ => {}
+            },
+            None => {
+                log::warn!("Could not render due to unconfigured render state");
+            }
+        }
+
+        Ok(())
+    }
+
+    fn exit(&mut self, event_loop: &ActiveEventLoop) {
+        // To avoid a segfault, force Rust to drop values before closing
+        self.state = None;
+        event_loop.exit();
+    }
+
+    fn exit_with_error(&mut self, error: &ApplicationError, event_loop: &ActiveEventLoop) {
+        log::error!("Application came into an unrecoverable error: {error}");
+        self.exit(event_loop);
+    }
 }
 
 impl ApplicationHandler for Application {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // Run once when the window is still not created and start the window event loop
         if !self.is_configured() {
-            let window = Arc::new(
-                event_loop
-                    .create_window(Window::default_attributes())
-                    .unwrap(),
-            );
+            match event_loop.create_window(Window::default_attributes()) {
+                Ok(window) => {
+                    let window = Arc::new(window);
 
-            let new_state =
-                pollster::block_on(RenderState::new(window.clone(), &self.state_options));
-            self.state = Some(new_state);
-
-            window.request_redraw();
+                    match pollster::block_on(RenderState::new(window.clone(), &self.state_options))
+                    {
+                        Ok(state) => {
+                            self.state = Some(state);
+                            window.request_redraw();
+                        }
+                        Err(error) => self.exit_with_error(&error.into(), event_loop),
+                    }
+                }
+                Err(error) => self.exit_with_error(&error.into(), event_loop),
+            }
         }
     }
 
@@ -103,22 +131,18 @@ impl ApplicationHandler for Application {
                         },
                     ..
                 } => {
-                    // To avoid a segfault, force Rust to drop values before closing
-                    self.state = None;
-
-                    event_loop.exit();
+                    self.exit(event_loop);
                 }
                 WindowEvent::Resized(new_size) => state.resize(new_size),
                 WindowEvent::RedrawRequested => {
                     if let Err(error) = self.render() {
-                        log::error!("Application came into an unrecoverable error: {error}");
-                        event_loop.exit();
+                        self.exit_with_error(&error, event_loop);
                     }
                 }
                 _ => {}
             }
         } else {
-            log::warn!("Cannot process window event due to unconfigured application");
+            log::warn!("Could not process window event due to unconfigured application");
         }
     }
 
@@ -134,7 +158,7 @@ impl ApplicationHandler for Application {
         {
             state.device_event(&event);
         } else {
-            log::warn!("Cannot process device event due to unconfigured application");
+            log::warn!("Could not process device event due to unconfigured application");
         }
     }
 }

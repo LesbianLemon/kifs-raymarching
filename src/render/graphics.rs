@@ -3,17 +3,18 @@ use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::data::uniform::{UniformBuffer, UniformBufferDescriptor, UniformBufferInit};
 use crate::data::{CameraData, SizeData};
-use crate::math::{PI, Radians, Vector2};
+use crate::util::math::{PI, Radians, Vector2};
 
 pub struct GraphicState {
     size_data: SizeData,
-    size_uniform_buffer: UniformBuffer<'static>,
+    size_uniform_buffer: UniformBuffer,
     camera_data: CameraData,
-    camera_uniform_buffer: UniformBuffer<'static>,
+    camera_uniform_buffer: UniformBuffer,
     camera_rotatable: bool,
 }
 
 impl GraphicState {
+    #[must_use]
     pub fn new(window: &Window, device: &wgpu::Device) -> Self {
         let size_data = window.inner_size().into();
         let size_uniform_buffer = device.create_uniform_buffer(&UniformBufferDescriptor {
@@ -37,18 +38,22 @@ impl GraphicState {
         }
     }
 
+    #[must_use]
     pub fn size_data(&self) -> SizeData {
         self.size_data
     }
 
+    #[must_use]
     pub fn size_uniform_buffer(&self) -> &UniformBuffer {
         &self.size_uniform_buffer
     }
 
+    #[must_use]
     pub fn camera_data(&self) -> CameraData {
         self.camera_data
     }
 
+    #[must_use]
     pub fn camera_uniform_buffer(&self) -> &UniformBuffer {
         &self.camera_uniform_buffer
     }
@@ -98,6 +103,7 @@ impl GraphicState {
         self.camera_rotatable = false;
     }
 
+    #[must_use]
     pub fn is_camera_rotatable(&self) -> bool {
         self.camera_rotatable
     }

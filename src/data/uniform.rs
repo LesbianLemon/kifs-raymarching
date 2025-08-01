@@ -1,4 +1,4 @@
-use egui_wgpu::wgpu::{self, util::DeviceExt as _};
+use egui_wgpu::wgpu;
 
 pub trait UniformBufferData: Copy + Clone {
     type PodData: bytemuck::Pod;
@@ -16,16 +16,12 @@ where
 }
 
 #[derive(Clone, Debug)]
-pub struct UniformBuffer<'a> {
-    label: wgpu::Label<'a>,
+pub struct UniformBuffer {
     buffer: wgpu::Buffer,
 }
 
-impl<'a> UniformBuffer<'a> {
-    pub fn label(&self) -> wgpu::Label<'a> {
-        self.label
-    }
-
+impl UniformBuffer {
+    #[must_use]
     pub fn buffer(&self) -> &wgpu::Buffer {
         &self.buffer
     }
@@ -43,31 +39,28 @@ impl<'a> UniformBuffer<'a> {
 }
 
 pub trait UniformBufferInit {
-    fn create_uniform_buffer<'a, Data>(
-        &self,
-        descriptor: &UniformBufferDescriptor<'a, Data>,
-    ) -> UniformBuffer<'a>
-    where
-        Data: UniformBufferData;
-}
+    fn create_buffer_init(&self, descriptor: &wgpu::util::BufferInitDescriptor) -> wgpu::Buffer;
 
-// implement functionality for foreign type using trait
-impl UniformBufferInit for wgpu::Device {
-    fn create_uniform_buffer<'a, Data>(
+    fn create_uniform_buffer<Data>(
         &self,
-        descriptor: &UniformBufferDescriptor<'a, Data>,
-    ) -> UniformBuffer<'a>
+        descriptor: &UniformBufferDescriptor<'_, Data>,
+    ) -> UniformBuffer
     where
         Data: UniformBufferData,
     {
         UniformBuffer {
-            label: descriptor.label,
-            // data: descriptor.data,
             buffer: self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: descriptor.label,
                 contents: bytemuck::cast_slice(&[descriptor.data.into_pod()]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }),
         }
+    }
+}
+
+// Implement functionality for foreign type using trait
+impl UniformBufferInit for wgpu::Device {
+    fn create_buffer_init(&self, descriptor: &wgpu::util::BufferInitDescriptor) -> wgpu::Buffer {
+        wgpu::util::DeviceExt::create_buffer_init(self, descriptor)
     }
 }

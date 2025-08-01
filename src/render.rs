@@ -1,8 +1,9 @@
-use egui_wgpu::{
-    ScreenDescriptor,
-    wgpu::{self, InstanceDescriptor},
+use egui_wgpu::{ScreenDescriptor, wgpu};
+use limited_queue::LimitedQueue;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
 };
-use std::sync::Arc;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, ElementState, MouseButton, MouseScrollDelta, WindowEvent},
@@ -10,8 +11,13 @@ use winit::{
 };
 
 use crate::{
-    data::buffer::{BufferGroup, BufferGroupDescriptor, BufferGroupInit, BufferGroupLayoutEntry},
-    math::Radians,
+    data::buffer::{
+        BufferGroup, BufferGroupInit, BufferGroupLayoutEntry, FixedEntryBufferGroupDescriptor,
+    },
+    util::{
+        error::{RenderError, RequestAdapterError},
+        math::Radians,
+    },
 };
 
 pub mod graphics;
@@ -35,8 +41,9 @@ pub struct RenderState {
     config: wgpu::SurfaceConfiguration,
     graphic_state: GraphicState,
     gui_state: GuiState,
-    uniform_group: BufferGroup<'static>,
+    uniform_group: BufferGroup,
     pipeline: wgpu::RenderPipeline,
+    frametimes: LimitedQueue<Duration>,
 }
 
 impl RenderState {
@@ -44,7 +51,7 @@ impl RenderState {
         instance: &wgpu::Instance,
         surface: &wgpu::Surface<'static>,
         options: &RenderStateOptions,
-    ) -> wgpu::Adapter {
+    ) -> Result<wgpu::Adapter, RequestAdapterError> {
         instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: options.power_preference,
@@ -52,13 +59,13 @@ impl RenderState {
                 force_fallback_adapter: false,
             })
             .await
-            .unwrap()
+            .ok_or(RequestAdapterError)
     }
 
     async fn create_device_and_queue(
         adapter: &wgpu::Adapter,
         options: &RenderStateOptions,
-    ) -> (wgpu::Device, wgpu::Queue) {
+    ) -> Result<(wgpu::Device, wgpu::Queue), wgpu::RequestDeviceError> {
         adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -73,9 +80,9 @@ impl RenderState {
                 None,
             )
             .await
-            .unwrap()
     }
 
+    #[must_use]
     fn surface_format(surface_capabilities: &wgpu::SurfaceCapabilities) -> wgpu::TextureFormat {
         // Find first preferred SRGB format, otherwise use the general preferred one
         surface_capabilities
@@ -86,6 +93,7 @@ impl RenderState {
             .unwrap_or(surface_capabilities.formats[0])
     }
 
+    #[must_use]
     fn alpha_mode(surface_capabilities: &wgpu::SurfaceCapabilities) -> wgpu::CompositeAlphaMode {
         if surface_capabilities
             .alpha_modes
@@ -97,23 +105,25 @@ impl RenderState {
         }
     }
 
+    #[must_use]
     fn create_surface_config(
-        surface_format: &wgpu::TextureFormat,
-        alpha_mode: &wgpu::CompositeAlphaMode,
+        format: wgpu::TextureFormat,
+        alpha_mode: wgpu::CompositeAlphaMode,
         size: PhysicalSize<u32>,
     ) -> wgpu::SurfaceConfiguration {
         wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: *surface_format,
+            format,
             width: size.width,
             height: size.height,
             present_mode: wgpu::PresentMode::AutoVsync, // This is supported on all platforms if adapter is compatible with the surface
-            alpha_mode: *alpha_mode,
+            alpha_mode,
             view_formats: vec![], // View formats of the surface format are always allowed, even when specifying an empty vector
             desired_maximum_frame_latency: 2,
         }
     }
 
+    #[must_use]
     fn create_render_pipeline(
         device: &wgpu::Device,
         bind_group_layouts: &[&wgpu::BindGroupLayout],
@@ -169,16 +179,23 @@ impl RenderState {
         })
     }
 
-    pub async fn new(window: Arc<Window>, options: &RenderStateOptions) -> Self {
+    /// ## Errors
+    /// - `RenderError::CreateSurface(CreateSurfaceError)` when surface creation failed
+    /// - `RenderError::RequestAdapter(RequestAdapterError)` when adapter request failed
+    /// - `RenderError::RequestDevice(RequestDeviceError)` when device request failed
+    pub async fn new(
+        window: Arc<Window>,
+        options: &RenderStateOptions,
+    ) -> Result<Self, RenderError> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
-            ..InstanceDescriptor::default()
+            ..wgpu::InstanceDescriptor::default()
         });
 
-        let surface = instance.create_surface(window.clone()).unwrap();
+        let surface = instance.create_surface(window.clone())?;
 
-        let adapter = Self::create_adapter(&instance, &surface, options).await;
-        let (device, queue) = Self::create_device_and_queue(&adapter, options).await;
+        let adapter = Self::create_adapter(&instance, &surface, options).await?;
+        let (device, queue) = Self::create_device_and_queue(&adapter, options).await?;
 
         let surface_capabilities = surface.get_capabilities(&adapter);
 
@@ -186,31 +203,32 @@ impl RenderState {
         // meaning surface_format and alpha_mode are well defined
         let surface_format = Self::surface_format(&surface_capabilities);
         let alpha_mode = Self::alpha_mode(&surface_capabilities);
-        let config = Self::create_surface_config(&surface_format, &alpha_mode, window.inner_size());
+        let config = Self::create_surface_config(surface_format, alpha_mode, window.inner_size());
 
         let graphic_state = GraphicState::new(&window, &device);
         let gui_state = GuiState::new(&window, &device, surface_format);
-        let uniform_group = device.create_buffer_group(&BufferGroupDescriptor {
-            label: Some("uniform_buffer_group"),
-            buffers: &[
-                graphic_state.size_uniform_buffer().buffer(),
-                graphic_state.camera_uniform_buffer().buffer(),
-                gui_state.gui_uniform_buffer().buffer(),
-            ],
-            layout_entry: BufferGroupLayoutEntry {
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
+        let uniform_group =
+            device.create_fixed_entry_buffer_group(&FixedEntryBufferGroupDescriptor {
+                label: Some("uniform_buffer_group"),
+                buffers: &[
+                    graphic_state.size_uniform_buffer().buffer(),
+                    graphic_state.camera_uniform_buffer().buffer(),
+                    gui_state.gui_uniform_buffer().buffer(),
+                ],
+                entry: BufferGroupLayoutEntry {
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
                 },
-                count: None,
-            },
-        });
+            });
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("raymarching_shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
         });
 
         let pipeline = Self::create_render_pipeline(
@@ -223,7 +241,7 @@ impl RenderState {
         // Configure the surface for the first time
         surface.configure(&device, &config);
 
-        Self {
+        Ok(Self {
             window,
             surface,
             device,
@@ -233,13 +251,16 @@ impl RenderState {
             gui_state,
             uniform_group,
             pipeline,
-        }
+            frametimes: LimitedQueue::with_capacity(5),
+        })
     }
 
+    #[must_use]
     pub fn window(&self) -> &Window {
         &self.window
     }
 
+    #[must_use]
     pub fn size(&self) -> PhysicalSize<u32> {
         self.window.inner_size()
     }
@@ -275,6 +296,7 @@ impl RenderState {
             WindowEvent::MouseWheel { delta, .. } => {
                 let distance = match delta {
                     MouseScrollDelta::LineDelta(_, dy) => *dy,
+                    #[allow(clippy::cast_possible_truncation)]
                     MouseScrollDelta::PixelDelta(PhysicalPosition { y: dy, .. }) => {
                         (*dy / 10.) as f32
                     }
@@ -294,7 +316,9 @@ impl RenderState {
             if self.graphic_state.is_camera_rotatable() {
                 self.graphic_state.rotate_camera(
                     &self.queue,
+                    #[allow(clippy::cast_possible_truncation)]
                     Radians::from_degrees(-(*dx / 10.) as f32),
+                    #[allow(clippy::cast_possible_truncation)]
                     Radians::from_degrees((*dy / 10.) as f32),
                 );
                 self.window.request_redraw();
@@ -302,7 +326,12 @@ impl RenderState {
         }
     }
 
-    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    /// ## Errors
+    /// - `RenderError::Surface(SurfaceError)` when getting current surface texture failed
+    /// - `RenderError::GUINotConfigured(GUINotConfiguredError)` when tried to render GUI prior to configuring it
+    pub fn render(&mut self) -> Result<(), RenderError> {
+        let start_time = Instant::now();
+
         let surface_texture = self.surface.get_current_texture()?;
         let view = surface_texture
             .texture
@@ -310,6 +339,7 @@ impl RenderState {
 
         let screen_descriptor = ScreenDescriptor {
             size_in_pixels: [self.size().width, self.size().height],
+            #[allow(clippy::cast_possible_truncation)]
             pixels_per_point: self.window.scale_factor() as f32,
         };
 
@@ -349,13 +379,20 @@ impl RenderState {
 
             self.graphic_state.render(&mut render_pass);
             // Execute GUI rendering last so it stays on top of our graphics and because it consumes the render_pass
-            self.gui_state.render(render_pass, &screen_descriptor);
+            self.gui_state.render(render_pass, &screen_descriptor)?;
         }
 
         // Submit the queue to the GPU and present the changed surface
         self.queue.submit(std::iter::once(encoder.finish()));
         self.window.pre_present_notify();
         surface_texture.present();
+
+        self.frametimes
+            .push(Instant::now().duration_since(start_time));
+        println!(
+            "Frame time: {}ms",
+            self.frametimes.iter().sum::<Duration>().as_millis()
+        );
 
         // Request a window redraw
         // This is not what I want to do, but currently have no better solution

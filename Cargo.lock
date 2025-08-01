@@ -1100,6 +1100,7 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "env_logger",
+ "limited-queue",
  "log",
  "num-derive",
  "num-traits",
@@ -1133,6 +1134,12 @@ dependencies = [
  "libc",
  "redox_syscall 0.5.11",
 ]
+
+[[package]]
+name = "limited-queue"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "269d398f3d564f4b511e6aadb0407b46181aee259cd3b9a702e3b2f19a9b6f8b"
 
 [[package]]
 name = "linux-raw-sys"

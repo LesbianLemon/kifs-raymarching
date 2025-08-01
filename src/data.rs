@@ -1,7 +1,7 @@
 use egui::{Color32, Rgba};
 use winit::dpi::PhysicalSize;
 
-use crate::math::{Matrix3x3, Radians, Vector2};
+use crate::util::math::{Matrix3x3, Radians, Vector2};
 
 pub mod buffer;
 pub mod packed;
@@ -13,14 +13,14 @@ use scene::PrimitiveShape;
 use uniform::UniformBufferData;
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SizePodData {
     width: u32,
     height: u32,
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraPodData {
     origin_distance: f32,
     min_distance: f32,
@@ -29,7 +29,7 @@ pub struct CameraPodData {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GuiPodData {
     fractal_color: Vector4Packed<f32>,
     background_color: Vector4Packed<f32>,
@@ -37,7 +37,7 @@ pub struct GuiPodData {
     _padding: [u32; 3],
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct SizeData {
     pub width: u32,
     pub height: u32,
@@ -70,7 +70,7 @@ impl UniformBufferData for SizeData {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct CameraData {
     pub origin_distance: f32,
     pub min_distance: f32,
@@ -119,7 +119,7 @@ impl UniformBufferData for CameraData {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct GuiData {
     pub fractal_color: Color32,
     pub background_color: Color32,
@@ -166,7 +166,7 @@ impl UniformBufferData for GuiData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::math::{PI, Vector3};
+    use crate::util::math::{PI, Vector3};
 
     #[test]
     fn test_camera_matrix() {
