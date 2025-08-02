@@ -8,16 +8,15 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::util::error::{ApplicationError, RenderStateUnconfiguredError};
-use crate::{
-    render::{RenderState, RenderStateOptions},
-    util::error::RenderError,
-};
+use crate::error::{ApplicationError, RenderError, RenderStateUnconfiguredError};
+use crate::render::{RenderState, RenderStateOptions};
 
 pub struct Application {
     active: bool,
     state: Option<RenderState>,
     state_options: RenderStateOptions,
+    // Needs to be Option<_> due to requiring .take() later, since ApplicationError is not Clone nor Copy
+    exit_error: Option<ApplicationError>,
 }
 
 impl Application {
@@ -27,30 +26,22 @@ impl Application {
             active: true,
             state: None,
             state_options,
+            exit_error: None,
         }
     }
 
     /// ## Errors
     /// - `ApplicationError::EventLoop(EventLoopError)` when event loop creation failed or event loop terminated with an error
-    pub fn run(&mut self) {
-        match EventLoop::new() {
-            Ok(event_loop) => {
-                event_loop.set_control_flow(ControlFlow::Poll);
+    pub fn run(&mut self) -> Result<(), ApplicationError> {
+        let event_loop = EventLoop::new()?;
+        event_loop.set_control_flow(ControlFlow::Poll);
 
-                match event_loop.run_app(self) {
-                    Ok(()) => {
-                        Self::exit_message();
-                    }
-                    Err(error) => {
-                        Self::error_message(&error.into());
-                        Self::exit_message();
-                    }
-                }
-            }
-            Err(error) => {
-                Self::error_message(&error.into());
-                Self::exit_message();
-            }
+        event_loop.run_app(self)?;
+
+        log::info!("Exiting application...");
+        match self.exit_error.take() {
+            Some(error) => Err(error),
+            None => Ok(()),
         }
     }
 
@@ -86,18 +77,11 @@ impl Application {
         Ok(())
     }
 
-    fn deactivate(&mut self) {
+    fn exit(&mut self, exit_error: Option<ApplicationError>) {
         self.active = false;
         // To avoid a segfault, force Rust to drop values before closing
         self.state = None;
-    }
-
-    fn error_message(error: &ApplicationError) {
-        log::error!("Application came into an unrecoverable error: {error}");
-    }
-
-    fn exit_message() {
-        log::info!("Exiting application...");
+        self.exit_error = exit_error;
     }
 }
 
@@ -116,14 +100,14 @@ impl ApplicationHandler for Application {
                             window.request_redraw();
                         }
                         Err(error) => {
-                            Self::error_message(&error.into());
                             event_loop.exit();
+                            self.exit(Some(error.into()));
                         }
                     }
                 }
                 Err(error) => {
-                    Self::error_message(&error.into());
                     event_loop.exit();
+                    self.exit(Some(error.into()));
                 }
             }
         }
@@ -158,15 +142,14 @@ impl ApplicationHandler for Application {
                             },
                         ..
                     } => {
-                        self.deactivate();
                         event_loop.exit();
+                        self.exit(None);
                     }
                     WindowEvent::Resized(new_size) => state.resize(new_size),
                     WindowEvent::RedrawRequested => {
                         if let Err(error) = self.render() {
-                            self.deactivate();
-                            Self::error_message(&error);
                             event_loop.exit();
+                            self.exit(Some(error));
                         }
                     }
                     _ => {}

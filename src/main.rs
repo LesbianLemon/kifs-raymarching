@@ -10,5 +10,9 @@ fn main() {
         ..RenderStateOptions::default()
     };
     let mut app = Application::new(state_options);
-    app.run();
+
+    match app.run() {
+        Ok(()) => log::info!("Application exited successfully without any errors"),
+        Err(error) => log::error!("Application came into an unrecoverable error: {error}"),
+    }
 }

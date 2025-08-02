@@ -23,7 +23,7 @@ impl<'a> Deref for WGSLShaderSource<'a> {
     }
 }
 
-impl<'a> Add<Self> for WGSLShaderSource<'a> {
+impl Add<Self> for WGSLShaderSource<'_> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -32,7 +32,7 @@ impl<'a> Add<Self> for WGSLShaderSource<'a> {
     }
 }
 
-impl<'a> Sum<Self> for WGSLShaderSource<'a> {
+impl Sum<Self> for WGSLShaderSource<'_> {
     fn sum<I>(iter: I) -> Self
     where
         I: Iterator<Item = Self>,
@@ -63,7 +63,10 @@ impl Deref for WGSLShaderModule {
 pub(crate) trait WGSLShaderModuleInit {
     fn create_shader_module(&self, descriptor: wgpu::ShaderModuleDescriptor) -> wgpu::ShaderModule;
 
-    fn create_wgsl_shader_module(&self, descriptor: WGSLShaderModuleDescriptor) -> WGSLShaderModule {
+    fn create_wgsl_shader_module(
+        &self,
+        descriptor: WGSLShaderModuleDescriptor,
+    ) -> WGSLShaderModule {
         WGSLShaderModule(
             self.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: descriptor.label,

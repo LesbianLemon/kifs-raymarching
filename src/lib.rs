@@ -2,5 +2,6 @@
 
 pub mod application;
 pub(crate) mod data;
+pub mod error;
 pub mod render;
 pub(crate) mod util;

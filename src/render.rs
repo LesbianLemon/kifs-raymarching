@@ -10,12 +10,13 @@ use winit::{
     window::Window,
 };
 
+use crate::error::{RenderError, RenderStateError};
 use crate::util::{
     buffer::{
         BufferGroup, BufferGroupInit as _, BufferGroupLayoutEntry, FixedEntryBufferGroupDescriptor,
     },
-    error::{RenderError, RenderStateError, RequestAdapterError},
-    math::Radians, shader::{WGSLShaderModuleDescriptor, WGSLShaderModuleInit, WGSLShaderSource},
+    math::Radians,
+    shader::{WGSLShaderModuleDescriptor, WGSLShaderModuleInit, WGSLShaderSource},
 };
 
 pub(crate) mod graphics;
@@ -49,7 +50,7 @@ impl RenderState {
         instance: &wgpu::Instance,
         surface: &wgpu::Surface<'static>,
         options: &RenderStateOptions,
-    ) -> Result<wgpu::Adapter, RequestAdapterError> {
+    ) -> Result<wgpu::Adapter, wgpu::RequestAdapterError> {
         instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: options.power_preference,
@@ -57,7 +58,6 @@ impl RenderState {
                 force_fallback_adapter: false,
             })
             .await
-            .ok_or(RequestAdapterError)
     }
 
     async fn create_device_and_queue(
@@ -65,18 +65,13 @@ impl RenderState {
         options: &RenderStateOptions,
     ) -> Result<(wgpu::Device, wgpu::Queue), wgpu::RequestDeviceError> {
         adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    required_features: options.required_features,
-                    required_limits: options.required_limits.clone(),
-                    label: None,
-                    memory_hints: wgpu::MemoryHints::default(),
-                    // This is a change made in wgpu version 25.0.0,
-                    // but egui_wgpu is not yet updated to that version
-                    // trace: wgpu::Trace::Off,
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                required_features: options.required_features,
+                required_limits: options.required_limits.clone(),
+                label: None,
+                memory_hints: wgpu::MemoryHints::default(),
+                trace: wgpu::Trace::Off,
+            })
             .await
     }
 
@@ -226,7 +221,9 @@ impl RenderState {
         let shader = device.create_wgsl_shader_module(WGSLShaderModuleDescriptor {
             label: Some("raymarching_shader"),
             main: WGSLShaderSource(include_str!("shaders/main.wgsl").into()),
-            dependencies: &[WGSLShaderSource(include_str!("shaders/primitives.wgsl").into())],
+            dependencies: &[WGSLShaderSource(
+                include_str!("shaders/primitives.wgsl").into(),
+            )],
         });
 
         let render_pipeline = Self::create_render_pipeline(

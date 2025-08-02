@@ -5,10 +5,8 @@ use winit::{event::WindowEvent, window::Window};
 
 use crate::{
     data::{GuiData, scene::PrimitiveShape},
-    util::{
-        error::GUIUnconfiguredError,
-        uniform::{UniformBuffer, UniformBufferDescriptor, UniformBufferInit as _},
-    },
+    error::GUIUnconfiguredError,
+    util::uniform::{UniformBuffer, UniformBufferDescriptor, UniformBufferInit as _},
 };
 
 struct GuiGenerator;

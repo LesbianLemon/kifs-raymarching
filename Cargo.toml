@@ -4,14 +4,17 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bytemuck = { version = "1.22.0", features = ["derive"] }
-egui = "0.31.1"
-egui-wgpu = { version = "0.31.1",features = ["winit"] }
-egui-winit = "0.31.1"
+bytemuck = { version = "1.23.1", features = ["derive"] }
+egui = "0.32.0"
+egui-wgpu = { version = "0.32.0",features = ["winit"] }
+egui-winit = "0.32.0"
 env_logger = "0.11.8"
 limited-queue = "0.1.5"
 log = "0.4.27"
 num-traits = "0.2.19"
 num-derive = "0.4.2"
 pollster = "0.4.0"
-winit = { version = "0.30.9", features = ["rwh_06"] }
+winit = { version = "0.30.12", features = ["rwh_06"] }
+# This is a temporary fix until egui_wgpu performs a fix
+wgpu = "25.0.2" # enables the wgpu default features so we get the default backends
+

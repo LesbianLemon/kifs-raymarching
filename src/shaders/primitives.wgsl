@@ -27,8 +27,8 @@ struct Cylinder {
 }
 
 fn cylinder_SDF(cylinder: Cylinder, position: vec3<f32>) -> f32 {
-    let d = abs(vec2<f32>(length(position.xy), position.z)) - vec2<f32>(cylinder.radius, cylinder.height);
-    return min(max(d.x, d.y), 0.) + length(max(d, vec2<f32>(0., 0.)));
+    let d = abs(vec2(length(position.xy), position.z)) - vec2(cylinder.radius, cylinder.height);
+    return min(max(d.x, d.y), 0.) + length(max(d, vec2(0., 0.)));
 }
 
 struct Box {
@@ -38,8 +38,8 @@ struct Box {
 }
 
 fn box_SDF(box: Box, position: vec3<f32>) -> f32 {
-    let q = abs(position) - vec3<f32>(box.length, box.width, box.height);
-    return length(max(q, vec3<f32>(0., 0., 0.))) + min(max(q.x, max(q.y, q.z)), 0.);
+    let q = abs(position) - vec3(box.length, box.width, box.height);
+    return length(max(q, vec3(0., 0., 0.))) + min(max(q.x, max(q.y, q.z)), 0.);
 }
 
 struct Torus {
@@ -48,15 +48,15 @@ struct Torus {
 }
 
 fn torus_SDF(torus: Torus, position: vec3<f32>) -> f32 {
-    let q = vec2<f32>(length(position.xy) - torus.outer_radius, position.z);
+    let q = vec2(length(position.xy) - torus.outer_radius, position.z);
     return length(q) - torus.inner_radius;
 }
 
 fn tetrahedral_fold(position: vec3<f32>) -> vec3<f32> {
     var pos = position;
-    var normal = vec3<f32>(1., 1., 0.);
+    var normal = vec3(1., 1., 0.);
     for (var i = 0; i < 3; i++) {
-        pos = plane_mirror(Plane(normal, vec3<f32>(0.)), pos);
+        pos = plane_mirror(Plane(normal, vec3(0.)), pos);
         // Right shift
         normal = normal.zxy;
     }
@@ -72,7 +72,7 @@ fn sierpinski_tetrahedron_SDF(position: vec3<f32>) -> f32 {
         pos = tetrahedral_fold(pos);
 
         scale *= 2.;
-        pos = 2. * pos - vec3<f32>(1.);
+        pos = 2. * pos - vec3(1.);
         r = length(pos);
     }
 
@@ -85,7 +85,7 @@ fn bunny_SDF(position: vec3f) -> f32 {
         return length(position) - 0.8;
     }
 
-    let q = vec4f(position.xzy * vec3<f32>(-1., 1., -1.), 1.);
+    let q = vec4f(position.xzy * vec3(-1., 1., -1.), 1.);
     let f00 = sin(mat4x4f(-3.02, 1.95, -3.42, -0.6, 3.08, 0.85, -2.25, -0.24, -0.29, 1.16, -3.74, 2.89, -0.71, 4.5, -3.24, -3.5) * q);
     let f01 = sin(mat4x4f(-0.4, -3.61, 3.23, -0.14, -0.36, 3.64, -3.91, 2.66, 2.9, -0.54, -2.75, 2.71, 7.02, -5.41, -1.12, -7.41) * q);
     let f02 = sin(mat4x4f(-1.77, -1.28, -4.29, -3.2, -3.49, -2.81, -0.64, 2.79, 3.15, 2.14, -3.85, 1.83, -2.07, 4.49, 5.33, -2.17) * q);

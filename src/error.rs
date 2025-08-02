@@ -1,4 +1,4 @@
-use egui_wgpu::wgpu::{CreateSurfaceError, RequestDeviceError, SurfaceError};
+use egui_wgpu::wgpu;
 use std::{
     error::Error,
     fmt::{Display, Formatter, Result},
@@ -24,9 +24,9 @@ macro_rules! impl_enum_error_display {
 }
 
 macro_rules! impl_enum_from {
-    ($argument:ident: $FromError:ident -> $Error:ident::$ErrorVariant:ident($expr:expr)) => {
-        impl From<$FromError> for $Error {
-            fn from($argument: $FromError) -> Self {
+    ($argument:ident: $($FromErrorwPart:ident)::+ -> $Error:ident::$ErrorVariant:ident($expr:expr)) => {
+        impl From<$($FromErrorwPart)::+> for $Error {
+            fn from($argument: $($FromErrorwPart)::+) -> Self {
                 $Error::$ErrorVariant($expr)
             }
         }
@@ -34,18 +34,7 @@ macro_rules! impl_enum_from {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct RequestAdapterError;
-
-impl Display for RequestAdapterError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        write!(f, "Adapter request failed, no valid adapters found")
-    }
-}
-
-impl_error!(RequestAdapterError);
-
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct RenderStateUnconfiguredError;
+pub struct RenderStateUnconfiguredError;
 
 impl Display for RenderStateUnconfiguredError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
@@ -56,7 +45,7 @@ impl Display for RenderStateUnconfiguredError {
 impl_error!(RenderStateUnconfiguredError);
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct GUIUnconfiguredError;
+pub struct GUIUnconfiguredError;
 
 impl Display for GUIUnconfiguredError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
@@ -67,33 +56,33 @@ impl Display for GUIUnconfiguredError {
 impl_error!(GUIUnconfiguredError);
 
 #[derive(Clone, Debug)]
-pub(crate) enum RenderError {
-    Surface(SurfaceError),
+pub enum RenderError {
+    Surface(wgpu::SurfaceError),
     GUIUnconfigured(GUIUnconfiguredError),
 }
 
 impl_enum_error_display!(RenderError{ ::Surface ::GUIUnconfigured });
 impl_error!(RenderError);
 
-impl_enum_from!(error: SurfaceError -> RenderError::Surface(error));
+impl_enum_from!(error: wgpu::SurfaceError -> RenderError::Surface(error));
 impl_enum_from!(error: GUIUnconfiguredError -> RenderError::GUIUnconfigured(error));
 
 #[derive(Clone, Debug)]
-pub(crate) enum RenderStateError {
-    CreateSurface(CreateSurfaceError),
-    RequestAdapter(RequestAdapterError),
-    RequestDevice(RequestDeviceError),
+pub enum RenderStateError {
+    CreateSurface(wgpu::CreateSurfaceError),
+    RequestAdapter(wgpu::RequestAdapterError),
+    RequestDevice(wgpu::RequestDeviceError),
 }
 
 impl_enum_error_display!(RenderStateError{ ::CreateSurface ::RequestAdapter ::RequestDevice });
 impl_error!(RenderStateError);
 
-impl_enum_from!(error: CreateSurfaceError -> RenderStateError::CreateSurface(error));
-impl_enum_from!(error: RequestAdapterError -> RenderStateError::RequestAdapter(error));
-impl_enum_from!(error: RequestDeviceError -> RenderStateError::RequestDevice(error));
+impl_enum_from!(error: wgpu::CreateSurfaceError -> RenderStateError::CreateSurface(error));
+impl_enum_from!(error: wgpu::RequestAdapterError -> RenderStateError::RequestAdapter(error));
+impl_enum_from!(error: wgpu::RequestDeviceError -> RenderStateError::RequestDevice(error));
 
 #[derive(Debug)]
-pub(crate) enum ApplicationError {
+pub enum ApplicationError {
     EventLoop(EventLoopError),
     RenderStateUnconfigured(RenderStateUnconfiguredError),
     RenderState(RenderStateError),
@@ -107,9 +96,9 @@ impl_enum_from!(error: EventLoopError -> ApplicationError::EventLoop(error));
 impl_enum_from!(error: OsError -> ApplicationError::EventLoop(error.into()));
 impl_enum_from!(error: RenderStateUnconfiguredError -> ApplicationError::RenderStateUnconfigured(error));
 impl_enum_from!(error: RenderStateError -> ApplicationError::RenderState(error));
-impl_enum_from!(error: CreateSurfaceError -> ApplicationError::RenderState(error.into()));
-impl_enum_from!(error: RequestAdapterError -> ApplicationError::RenderState(error.into()));
-impl_enum_from!(error: RequestDeviceError -> ApplicationError::RenderState(error.into()));
+impl_enum_from!(error: wgpu::CreateSurfaceError -> ApplicationError::RenderState(error.into()));
+impl_enum_from!(error: wgpu::RequestAdapterError -> ApplicationError::RenderState(error.into()));
+impl_enum_from!(error: wgpu::RequestDeviceError -> ApplicationError::RenderState(error.into()));
 impl_enum_from!(error: RenderError -> ApplicationError::Render(error));
-impl_enum_from!(error: SurfaceError -> ApplicationError::Render(error.into()));
+impl_enum_from!(error: wgpu::SurfaceError -> ApplicationError::Render(error.into()));
 impl_enum_from!(error: GUIUnconfiguredError -> ApplicationError::Render(error.into()));
