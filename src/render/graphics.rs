@@ -1,9 +1,9 @@
 use egui_wgpu::wgpu;
 use winit::{dpi::PhysicalSize, window::Window};
 
-use crate::data::uniform::{UniformBuffer, UniformBufferDescriptor, UniformBufferInit};
 use crate::data::{CameraData, SizeData};
 use crate::util::math::{PI, Radians, Vector2};
+use crate::util::uniform::{UniformBuffer, UniformBufferDescriptor, UniformBufferInit as _};
 
 #[derive(Clone, Debug)]
 pub(crate) struct GraphicState {

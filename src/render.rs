@@ -10,14 +10,12 @@ use winit::{
     window::Window,
 };
 
-use crate::{
-    data::buffer::{
-        BufferGroup, BufferGroupInit, BufferGroupLayoutEntry, FixedEntryBufferGroupDescriptor,
+use crate::util::{
+    buffer::{
+        BufferGroup, BufferGroupInit as _, BufferGroupLayoutEntry, FixedEntryBufferGroupDescriptor,
     },
-    util::{
-        error::{RenderError, RenderStateError, RequestAdapterError},
-        math::Radians,
-    },
+    error::{RenderError, RenderStateError, RequestAdapterError},
+    math::Radians, shader::{WGSLShaderModuleDescriptor, WGSLShaderModuleInit, WGSLShaderSource},
 };
 
 pub(crate) mod graphics;
@@ -42,7 +40,7 @@ pub(crate) struct RenderState {
     graphic_state: GraphicState,
     gui_state: GuiState,
     uniform_group: BufferGroup,
-    pipeline: wgpu::RenderPipeline,
+    render_pipeline: wgpu::RenderPipeline,
     frametimes: LimitedQueue<Duration>,
 }
 
@@ -199,8 +197,7 @@ impl RenderState {
 
         let surface_capabilities = surface.get_capabilities(&adapter);
 
-        // Surface is guaranteed compatible with adapter on adapter initialisation,
-        // meaning surface_format and alpha_mode are well defined
+        // Surface is guaranteed compatible with adapter on adapter initialisation, meaning surface_format and alpha_mode are well defined
         let surface_format = Self::surface_format(&surface_capabilities);
         let alpha_mode = Self::alpha_mode(&surface_capabilities);
         let config = Self::create_surface_config(surface_format, alpha_mode, window.inner_size());
@@ -211,9 +208,9 @@ impl RenderState {
             device.create_fixed_entry_buffer_group(&FixedEntryBufferGroupDescriptor {
                 label: Some("uniform_buffer_group"),
                 buffers: &[
-                    graphic_state.size_uniform_buffer().buffer(),
-                    graphic_state.camera_uniform_buffer().buffer(),
-                    gui_state.gui_uniform_buffer().buffer(),
+                    graphic_state.size_uniform_buffer(),
+                    graphic_state.camera_uniform_buffer(),
+                    gui_state.gui_uniform_buffer(),
                 ],
                 entry: BufferGroupLayoutEntry {
                     visibility: wgpu::ShaderStages::FRAGMENT,
@@ -226,12 +223,13 @@ impl RenderState {
                 },
             });
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        let shader = device.create_wgsl_shader_module(WGSLShaderModuleDescriptor {
             label: Some("raymarching_shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
+            main: WGSLShaderSource(include_str!("shaders/main.wgsl").into()),
+            dependencies: &[WGSLShaderSource(include_str!("shaders/primitives.wgsl").into())],
         });
 
-        let pipeline = Self::create_render_pipeline(
+        let render_pipeline = Self::create_render_pipeline(
             &device,
             &[uniform_group.bind_group_layout()],
             &config,
@@ -250,7 +248,7 @@ impl RenderState {
             graphic_state,
             gui_state,
             uniform_group,
-            pipeline,
+            render_pipeline,
             frametimes: LimitedQueue::with_capacity(5),
         })
     }
@@ -378,7 +376,7 @@ impl RenderState {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&self.pipeline);
+            render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, self.uniform_group.bind_group(), &[]);
 
             self.graphic_state.render(&mut render_pass);

@@ -1,16 +1,16 @@
 use egui::{Color32, Rgba};
 use winit::dpi::PhysicalSize;
 
-use crate::util::math::{Matrix3x3, Radians, Vector2};
+use crate::util::{
+    math::{Matrix3x3, Radians, Vector2},
+    uniform::UniformBufferData,
+};
 
-pub(crate) mod buffer;
 pub(crate) mod packed;
 pub(crate) mod scene;
-pub(crate) mod uniform;
 
 use packed::{IntoPacked as _, IntoUnpacked, Vector2Packed, Vector3Packed, Vector4Packed};
 use scene::PrimitiveShape;
-use uniform::UniformBufferData;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]

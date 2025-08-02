@@ -4,12 +4,11 @@ use egui_winit::{EventResponse, State as EguiState};
 use winit::{event::WindowEvent, window::Window};
 
 use crate::{
-    data::{
-        GuiData,
-        scene::PrimitiveShape,
-        uniform::{UniformBuffer, UniformBufferDescriptor, UniformBufferInit},
+    data::{GuiData, scene::PrimitiveShape},
+    util::{
+        error::GUIUnconfiguredError,
+        uniform::{UniformBuffer, UniformBufferDescriptor, UniformBufferInit as _},
     },
-    util::error::GUIUnconfiguredError,
 };
 
 struct GuiGenerator;

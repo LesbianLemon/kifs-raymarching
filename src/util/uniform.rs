@@ -1,4 +1,5 @@
 use egui_wgpu::wgpu;
+use std::ops::Deref;
 
 pub(crate) trait UniformBufferData: Copy + Clone {
     type PodData: bytemuck::Pod;
@@ -17,25 +18,23 @@ where
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct UniformBuffer {
-    buffer: wgpu::Buffer,
-}
+pub(crate) struct UniformBuffer(wgpu::Buffer);
 
 impl UniformBuffer {
-    #[must_use]
-    pub(crate) fn buffer(&self) -> &wgpu::Buffer {
-        &self.buffer
-    }
-
     pub(crate) fn update_buffer<Data>(&mut self, queue: &wgpu::Queue, new_data: Data)
     where
         Data: UniformBufferData,
     {
-        queue.write_buffer(
-            &self.buffer,
-            0,
-            bytemuck::cast_slice(&[new_data.into_pod()]),
-        );
+        queue.write_buffer(&self.0, 0, bytemuck::cast_slice(&[new_data.into_pod()]));
+    }
+}
+
+// Implicitly implement all methods of wgpu::Buffer on UniformBuffer
+impl Deref for UniformBuffer {
+    type Target = wgpu::Buffer;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -49,13 +48,11 @@ pub(crate) trait UniformBufferInit {
     where
         Data: UniformBufferData,
     {
-        UniformBuffer {
-            buffer: self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: descriptor.label,
-                contents: bytemuck::cast_slice(&[descriptor.data.into_pod()]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }),
-        }
+        UniformBuffer(self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: descriptor.label,
+            contents: bytemuck::cast_slice(&[descriptor.data.into_pod()]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        }))
     }
 }
 
