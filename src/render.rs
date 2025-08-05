@@ -4,6 +4,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use wgpu::wgt::SamplerDescriptor;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, ElementState, MouseButton, MouseScrollDelta, WindowEvent},
@@ -11,13 +12,7 @@ use winit::{
 };
 
 use crate::error::{RenderError, RenderStateError};
-use crate::util::{
-    buffer::{
-        BufferGroup, BufferGroupInit as _, BufferGroupLayoutEntry, FixedEntryBufferGroupDescriptor,
-    },
-    math::Radians,
-    shader::{WGSLShaderModuleDescriptor, WGSLShaderModuleInit, WGSLShaderSource},
-};
+use crate::util::math::Radians;
 
 pub(crate) mod graphics;
 pub(crate) mod gui;
@@ -40,8 +35,6 @@ pub(crate) struct RenderState {
     config: wgpu::SurfaceConfiguration,
     graphic_state: GraphicState,
     gui_state: GuiState,
-    uniform_group: BufferGroup,
-    render_pipeline: wgpu::RenderPipeline,
     frametimes: LimitedQueue<Duration>,
 }
 
@@ -117,58 +110,42 @@ impl RenderState {
     }
 
     #[must_use]
-    fn create_render_pipeline(
+    fn create_render_texture(
         device: &wgpu::Device,
-        bind_group_layouts: &[&wgpu::BindGroupLayout],
-        config: &wgpu::SurfaceConfiguration,
-        shader: &wgpu::ShaderModule,
-    ) -> wgpu::RenderPipeline {
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("render_pipeline_layout"),
-                bind_group_layouts,
-                push_constant_ranges: &[],
-            });
-
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("render_pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: shader,
-                entry_point: Some("vs_main"),
-                buffers: &[],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
+        format: wgpu::TextureFormat,
+        size: PhysicalSize<u32>,
+    ) -> wgpu::Texture {
+        device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("render_texture"),
+            size: wgpu::Extent3d {
+                width: size.width,
+                height: size.height,
+                depth_or_array_layers: 1,
             },
-            fragment: Some(wgpu::FragmentState {
-                module: shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        })
+    }
 
-                polygon_mode: wgpu::PolygonMode::Fill,
-
-                unclipped_depth: false,
-
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
+    #[must_use]
+    fn create_render_sampler(device: &wgpu::Device) -> wgpu::Sampler {
+        device.create_sampler(&SamplerDescriptor {
+            label: Some("render_sampler"),
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            lod_min_clamp: 0.,
+            lod_max_clamp: 32.,
+            compare: None,
+            anisotropy_clamp: 1,
+            border_color: None,
         })
     }
 
@@ -185,6 +162,7 @@ impl RenderState {
             ..wgpu::InstanceDescriptor::default()
         });
 
+        let size = window.inner_size();
         let surface = instance.create_surface(window.clone())?;
 
         let adapter = Self::create_adapter(&instance, &surface, options).await?;
@@ -195,43 +173,10 @@ impl RenderState {
         // Surface is guaranteed compatible with adapter on adapter initialisation, meaning surface_format and alpha_mode are well defined
         let surface_format = Self::surface_format(&surface_capabilities);
         let alpha_mode = Self::alpha_mode(&surface_capabilities);
-        let config = Self::create_surface_config(surface_format, alpha_mode, window.inner_size());
+        let config = Self::create_surface_config(surface_format, alpha_mode, size);
 
-        let graphic_state = GraphicState::new(&window, &device);
+        let graphic_state = GraphicState::new(&window, &device, &config);
         let gui_state = GuiState::new(&window, &device, surface_format);
-        let uniform_group =
-            device.create_fixed_entry_buffer_group(&FixedEntryBufferGroupDescriptor {
-                label: Some("uniform_buffer_group"),
-                buffers: &[
-                    graphic_state.size_uniform_buffer(),
-                    graphic_state.camera_uniform_buffer(),
-                    gui_state.gui_uniform_buffer(),
-                ],
-                entry: BufferGroupLayoutEntry {
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            });
-
-        let shader = device.create_wgsl_shader_module(WGSLShaderModuleDescriptor {
-            label: Some("raymarching_shader"),
-            main: WGSLShaderSource(include_str!("shaders/main.wgsl").into()),
-            dependencies: &[WGSLShaderSource(
-                include_str!("shaders/primitives.wgsl").into(),
-            )],
-        });
-
-        let render_pipeline = Self::create_render_pipeline(
-            &device,
-            &[uniform_group.bind_group_layout()],
-            &config,
-            &shader,
-        );
 
         // Configure the surface for the first time
         surface.configure(&device, &config);
@@ -244,8 +189,6 @@ impl RenderState {
             config,
             graphic_state,
             gui_state,
-            uniform_group,
-            render_pipeline,
             frametimes: LimitedQueue::with_capacity(5),
         })
     }
@@ -270,7 +213,8 @@ impl RenderState {
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
 
-            self.graphic_state.update_size(&self.queue, new_size);
+            self.graphic_state
+                .update_screen_data(&self.queue, new_size.into());
             self.window.request_redraw();
         }
     }
@@ -345,36 +289,36 @@ impl RenderState {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
+                label: Some("render_encoder"),
             });
 
-        self.gui_state.prerender(
+        // Prepare everything for render
+        self.gui_state.update_gui(
             &self.window,
             &self.device,
             &self.queue,
             &mut encoder,
             &screen_descriptor,
         );
+        self.graphic_state
+            .update_options(&self.queue, self.gui_state.gui_data().into());
 
         // Drawing and rendering calls happen here
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("render_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
+                        store: wgpu::StoreOp::Discard,
                     },
                 })],
                 depth_stencil_attachment: None,
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, self.uniform_group.bind_group(), &[]);
 
             self.graphic_state.render(&mut render_pass);
             // Execute GUI rendering last so it stays on top of our graphics and because it consumes the render_pass

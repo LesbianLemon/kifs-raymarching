@@ -1,8 +1,5 @@
 use egui_wgpu::wgpu;
-use std::{
-    error::Error,
-    fmt::{Display, Formatter, Result},
-};
+use std::{error::Error, fmt};
 use winit::error::{EventLoopError, OsError};
 
 macro_rules! impl_error {
@@ -13,8 +10,8 @@ macro_rules! impl_error {
 
 macro_rules! impl_enum_error_display {
     ($Error:ident$({$(::$ErrorVariant:ident)+})?) => {
-        impl Display for $Error {
-            fn fmt(&self, f: &mut Formatter) -> Result {
+        impl fmt::Display for $Error {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 $(match self {
                     $($Error::$ErrorVariant(error) => error.fmt(f)),+
                 })?
@@ -36,8 +33,8 @@ macro_rules! impl_enum_from {
 #[derive(Clone, Copy, Debug)]
 pub struct RenderStateUnconfiguredError;
 
-impl Display for RenderStateUnconfiguredError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+impl fmt::Display for RenderStateUnconfiguredError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Render state was not configured before rendering")
     }
 }
@@ -47,8 +44,8 @@ impl_error!(RenderStateUnconfiguredError);
 #[derive(Clone, Copy, Debug)]
 pub struct GUIUnconfiguredError;
 
-impl Display for GUIUnconfiguredError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+impl fmt::Display for GUIUnconfiguredError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "GUI was not configured before rendering")
     }
 }

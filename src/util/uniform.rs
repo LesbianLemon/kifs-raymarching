@@ -1,31 +1,37 @@
 use egui_wgpu::wgpu;
 use std::ops::Deref;
 
-pub(crate) trait UniformBufferData: Copy + Clone {
-    type PodData: bytemuck::Pod;
+pub(crate) trait BufferDataDescriptor: Clone + Copy {
+    type BufferData: bytemuck::Pod;
 
-    fn into_pod(self) -> Self::PodData;
-    fn from_pod(pod_data: Self::PodData) -> Self;
+    fn into_buffer_data(self) -> Self::BufferData;
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct UniformBufferDescriptor<'a, Data>
+pub(crate) struct UniformBufferDescriptor<'a, Descriptor>
 where
-    Data: UniformBufferData,
+    Descriptor: BufferDataDescriptor,
 {
     pub(crate) label: wgpu::Label<'a>,
-    pub(crate) data: Data,
+    pub(crate) data_descriptor: Descriptor,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct UniformBuffer(wgpu::Buffer);
 
 impl UniformBuffer {
-    pub(crate) fn update_buffer<Data>(&mut self, queue: &wgpu::Queue, new_data: Data)
-    where
-        Data: UniformBufferData,
+    pub(crate) fn update_buffer<Descriptor>(
+        &mut self,
+        queue: &wgpu::Queue,
+        new_data_init: Descriptor,
+    ) where
+        Descriptor: BufferDataDescriptor,
     {
-        queue.write_buffer(&self.0, 0, bytemuck::cast_slice(&[new_data.into_pod()]));
+        queue.write_buffer(
+            &self.0,
+            0,
+            bytemuck::cast_slice(&[new_data_init.into_buffer_data()]),
+        );
     }
 }
 
@@ -41,16 +47,16 @@ impl Deref for UniformBuffer {
 pub(crate) trait UniformBufferInit {
     fn create_buffer_init(&self, descriptor: &wgpu::util::BufferInitDescriptor) -> wgpu::Buffer;
 
-    fn create_uniform_buffer<Data>(
+    fn create_uniform_buffer<Descriptor>(
         &self,
-        descriptor: &UniformBufferDescriptor<'_, Data>,
+        descriptor: &UniformBufferDescriptor<'_, Descriptor>,
     ) -> UniformBuffer
     where
-        Data: UniformBufferData,
+        Descriptor: BufferDataDescriptor,
     {
         UniformBuffer(self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: descriptor.label,
-            contents: bytemuck::cast_slice(&[descriptor.data.into_pod()]),
+            contents: bytemuck::cast_slice(&[descriptor.data_descriptor.into_buffer_data()]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         }))
     }

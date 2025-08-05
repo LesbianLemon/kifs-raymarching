@@ -4,94 +4,116 @@ use egui_winit::{EventResponse, State as EguiState};
 use winit::{event::WindowEvent, window::Window};
 
 use crate::{
-    data::{GuiData, scene::PrimitiveShape},
+    data::{
+        GuiData,
+        scene::{FractalGroup, PrimitiveShape},
+    },
     error::GUIUnconfiguredError,
-    util::uniform::{UniformBuffer, UniformBufferDescriptor, UniformBufferInit as _},
 };
 
-struct GuiGenerator;
+fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
+    egui::Grid::new("main_grid")
+        .num_columns(2)
+        .spacing([40.0, 4.0])
+        .striped(true)
+        .show(ui, |ui| {
+            ui.label("GUI Theme");
+            let mut theme_preference = ui.ctx().options(|opt| opt.theme_preference);
+            theme_preference.radio_buttons(ui);
+            ui.ctx().set_theme(theme_preference);
+            ui.end_row();
 
-impl GuiGenerator {
-    fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
-        egui::Grid::new("main_grid")
-            .num_columns(2)
-            .spacing([40.0, 4.0])
-            .striped(true)
-            .show(ui, |ui| {
-                ui.label("GUI Theme");
-                let mut theme_preference = ui.ctx().options(|opt| opt.theme_preference);
-                theme_preference.radio_buttons(ui);
-                ui.ctx().set_theme(theme_preference);
-                ui.end_row();
+            ui.separator();
+            ui.end_row();
 
-                ui.label("Label!");
-                ui.end_row();
+            ui.label("Fractal group:");
+            egui::ComboBox::from_label("Group")
+                .selected_text(format!("{}", gui_data.fractal_group))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        &mut gui_data.fractal_group,
+                        FractalGroup::KaleidoscopicIFS,
+                        format!("{}", FractalGroup::KaleidoscopicIFS),
+                    );
+                    ui.selectable_value(
+                        &mut gui_data.fractal_group,
+                        FractalGroup::JuliaSet,
+                        format!("{}", FractalGroup::JuliaSet),
+                    );
+                    ui.selectable_value(
+                        &mut gui_data.fractal_group,
+                        FractalGroup::GeneralizedJuliaSet,
+                        format!("{}", FractalGroup::GeneralizedJuliaSet),
+                    );
+                });
+            ui.end_row();
 
-                ui.label("Butpn");
-                if ui.button("Button!").clicked() {
-                    println!("boom!");
-                }
-                ui.end_row();
+            ui.separator();
+            ui.end_row();
 
-                ui.label("Checkboxxxxxxxx");
-                ui.checkbox(&mut true, "Checkbox");
-                ui.end_row();
+            ui.label("Butpn");
+            if ui.button("Button!").clicked() {
+                println!("boom!");
+            }
+            ui.end_row();
 
-                ui.label("Slajdr");
-                ui.add(egui::Slider::new(&mut 180.0, 0.0..=360.0).suffix("°"));
-                ui.end_row();
+            ui.label("Checkboxxxxxxxx");
+            ui.checkbox(&mut true, "Checkbox");
+            ui.end_row();
 
-                ui.label("Primitive shape");
-                egui::ComboBox::from_label("Shape")
-                    .selected_text(format!("{:?}", gui_data.primitive_shape))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(
-                            &mut gui_data.primitive_shape,
-                            PrimitiveShape::Sphere,
-                            format!("{:?}", PrimitiveShape::Sphere),
-                        );
-                        ui.selectable_value(
-                            &mut gui_data.primitive_shape,
-                            PrimitiveShape::Cylinder,
-                            format!("{:?}", PrimitiveShape::Cylinder),
-                        );
-                        ui.selectable_value(
-                            &mut gui_data.primitive_shape,
-                            PrimitiveShape::Box,
-                            format!("{:?}", PrimitiveShape::Box),
-                        );
-                        ui.selectable_value(
-                            &mut gui_data.primitive_shape,
-                            PrimitiveShape::Torus,
-                            format!("{:?}", PrimitiveShape::Torus),
-                        );
-                        ui.selectable_value(
-                            &mut gui_data.primitive_shape,
-                            PrimitiveShape::SierpinskiTetrahedron,
-                            format!("{:?}", PrimitiveShape::SierpinskiTetrahedron),
-                        );
-                        ui.selectable_value(
-                            &mut gui_data.primitive_shape,
-                            PrimitiveShape::Bunny,
-                            format!("{:?}", PrimitiveShape::Bunny),
-                        );
-                    });
-                ui.end_row();
+            ui.label("Slajdr");
+            ui.add(egui::Slider::new(&mut 180.0, 0.0..=360.0).suffix("°"));
+            ui.end_row();
 
-                ui.label("Fractal color");
-                ui.color_edit_button_srgba(&mut gui_data.fractal_color);
-                ui.end_row();
+            ui.label("Primitive shape:");
+            egui::ComboBox::from_label("Shape")
+                .selected_text(format!("{}", gui_data.primitive_shape))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        &mut gui_data.primitive_shape,
+                        PrimitiveShape::Sphere,
+                        format!("{}", PrimitiveShape::Sphere),
+                    );
+                    ui.selectable_value(
+                        &mut gui_data.primitive_shape,
+                        PrimitiveShape::Cylinder,
+                        format!("{}", PrimitiveShape::Cylinder),
+                    );
+                    ui.selectable_value(
+                        &mut gui_data.primitive_shape,
+                        PrimitiveShape::Box,
+                        format!("{}", PrimitiveShape::Box),
+                    );
+                    ui.selectable_value(
+                        &mut gui_data.primitive_shape,
+                        PrimitiveShape::Torus,
+                        format!("{}", PrimitiveShape::Torus),
+                    );
+                    ui.selectable_value(
+                        &mut gui_data.primitive_shape,
+                        PrimitiveShape::SierpinskiTetrahedron,
+                        format!("{}", PrimitiveShape::SierpinskiTetrahedron),
+                    );
+                    ui.selectable_value(
+                        &mut gui_data.primitive_shape,
+                        PrimitiveShape::Bunny,
+                        format!("{}", PrimitiveShape::Bunny),
+                    );
+                });
+            ui.end_row();
 
-                ui.label("Background color");
-                ui.color_edit_button_srgba(&mut gui_data.background_color);
-                ui.end_row();
-            });
-    }
+            ui.label("Fractal color:");
+            ui.color_edit_button_srgb(&mut gui_data.fractal_color);
+            ui.end_row();
+
+            ui.label("Background color:");
+            ui.color_edit_button_srgb(&mut gui_data.background_color);
+            ui.end_row();
+        });
 }
 
 pub(crate) struct GuiState {
     gui_data: GuiData,
-    gui_uniform_buffer: UniformBuffer,
     egui_state: EguiState,
     renderer: Renderer,
     tris: Option<Vec<ClippedPrimitive>>,
@@ -106,11 +128,6 @@ impl GuiState {
         output_color_format: wgpu::TextureFormat,
     ) -> Self {
         let gui_data = GuiData::default();
-        let gui_uniform_buffer = device.create_uniform_buffer(&UniformBufferDescriptor {
-            label: Some("gui_uniform_buffer"),
-            data: gui_data,
-        });
-
         let egui_state = EguiState::new(
             Context::default(),
             ViewportId::ROOT,
@@ -125,7 +142,6 @@ impl GuiState {
 
         Self {
             gui_data,
-            gui_uniform_buffer,
             egui_state,
             renderer,
             tris: None,
@@ -136,11 +152,6 @@ impl GuiState {
     #[must_use]
     pub(crate) fn gui_data(&self) -> GuiData {
         self.gui_data
-    }
-
-    #[must_use]
-    pub(crate) fn gui_uniform_buffer(&self) -> &UniformBuffer {
-        &self.gui_uniform_buffer
     }
 
     #[must_use]
@@ -161,7 +172,7 @@ impl GuiState {
         self.egui_state.on_mouse_motion(delta);
     }
 
-    pub(crate) fn prerender(
+    pub(crate) fn update_gui(
         &mut self,
         window: &Window,
         device: &wgpu::Device,
@@ -175,18 +186,19 @@ impl GuiState {
             .set_pixels_per_point(pixels_per_point);
 
         let raw_input = self.egui_state.take_egui_input(window);
-        self.egui_state.egui_ctx().begin_pass(raw_input);
+        // self.egui_state.egui_ctx().begin_pass(raw_input);
 
-        egui::Window::new("Settings Menu")
-            .resizable(true)
-            .vscroll(true)
-            .default_open(false)
-            .show(self.egui_state.egui_ctx(), |ui| {
-                GuiGenerator::update_ui(ui, &mut self.gui_data);
-            });
-        self.gui_uniform_buffer.update_buffer(queue, self.gui_data);
+        let full_output = self.egui_state.egui_ctx().run(raw_input, |_context| {
+            egui::Window::new("Settings Menu")
+                .resizable(true)
+                .vscroll(true)
+                .default_open(false)
+                .show(self.egui_state.egui_ctx(), |ui| {
+                    update_ui(ui, &mut self.gui_data);
+                });
+        });
 
-        let full_output = self.egui_state.egui_ctx().end_pass();
+        // let full_output = self.egui_state.egui_ctx().end_pass();
         self.egui_state
             .handle_platform_output(window, full_output.platform_output);
 

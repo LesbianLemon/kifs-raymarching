@@ -39,6 +39,27 @@ pub(crate) const TWO_PI: f32 = 2. * PI;
 // Accuracy of 0.0001 is good enough for our graphics
 pub(crate) const EPSILON: f32 = 1.0e-4;
 
+macro_rules! impl_vector_functionality {
+    ($Vector:ident) => {
+        impl<T> $Vector<T>
+        where
+            T: num_traits::real::Real,
+        {
+            pub(crate) fn length(&self) -> T {
+                (*self * *self).sqrt()
+            }
+
+            pub(crate) fn distance(&self, other: &Self) -> T {
+                (*self - *other).length()
+            }
+
+            pub(crate) fn normalize(&self) -> Self {
+                *self * self.length().recip()
+            }
+        }
+    };
+}
+
 macro_rules! impl_vector_extend {
     ($Vector:ident{$(.$field:tt)+} -> $VectorNext:ident{$(.$field_next:tt)+}) => {
         impl<T> $Vector<T> {
@@ -190,6 +211,7 @@ macro_rules! impl_vector_dot_product {
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct Vector2<T>(pub(crate) T, pub(crate) T);
 
+impl_vector_functionality!(Vector2);
 impl_vector_extend!(Vector2{ .0 .1 } -> Vector3{ .0 .1 .2 });
 
 impl_vector_partial_eq!(Vector2{ .0 .1 });
@@ -201,6 +223,7 @@ impl_vector_dot_product!(<T> Vector2<T>{ .0 .1 });
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct Vector3<T>(pub(crate) T, pub(crate) T, pub(crate) T);
 
+impl_vector_functionality!(Vector3);
 impl_vector_extend!(Vector3{ .0 .1 .2 } -> Vector4{ .0 .1 .2 .3 });
 impl_vector_shrink!(Vector3{ .0 .1 .2 } -> Vector2{ .0 .1 });
 
@@ -213,6 +236,7 @@ impl_vector_dot_product!(<T> Vector3<T>{ .0 .1 .2 });
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct Vector4<T>(pub(crate) T, pub(crate) T, pub(crate) T, pub(crate) T);
 
+impl_vector_functionality!(Vector4);
 impl_vector_shrink!(Vector4{ .0 .1 .2 .3 } -> Vector3{ .0 .1 .2 });
 
 impl_vector_partial_eq!(Vector4{ .0 .1 .2 .3 });

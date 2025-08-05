@@ -52,6 +52,7 @@ fn torus_SDF(torus: Torus, position: vec3<f32>) -> f32 {
     return length(q) - torus.inner_radius;
 }
 
+// TODO: OPTIMIZE!!!!
 fn tetrahedral_fold(position: vec3<f32>) -> vec3<f32> {
     var pos = position;
     var normal = vec3(1., 1., 0.);
@@ -133,4 +134,34 @@ fn bunny_SDF(position: vec3f) -> f32 {
 
     return dot(f20, vec4f(0.09, 0.12, -0.07, -0.03)) + dot(f21, vec4f(-0.04, 0.07, -0.08, 0.05)) +
         dot(f22, vec4f(-0.01, 0.06, -0.02, 0.07)) + dot(f23, vec4f(-0.05, 0.07, 0.03, 0.04)) - 0.16;
+}
+
+fn scene_SDF(position: vec3<f32>) -> f32 {
+    if options.primitive_id == 0 {
+        return sphere_SDF(Sphere(1.), position);
+    } else if options.primitive_id == 1 {
+        return cylinder_SDF(Cylinder(1., 2.), position);
+    } else if options.primitive_id == 2 {
+        return box_SDF(Box(1., 1., 1.), position);
+    } else if options.primitive_id == 3 {
+        return torus_SDF(Torus(1., 0.3), position);
+    } else if options.primitive_id == 4 {
+        return sierpinski_tetrahedron_SDF(position);
+    } else if options.primitive_id == 5 {
+        return bunny_SDF(position);
+    }
+
+    return 1.;
+}
+
+fn get_normal(position: vec3<f32>) -> vec3<f32> {
+    let h_x = vec3(EPSILON, 0., 0.);
+    let h_y = vec3(0., EPSILON, 0.);
+    let h_z = vec3(0., 0., EPSILON);
+
+    let sdf_dx = scene_SDF(position + h_x) - scene_SDF(position - h_x);
+    let sdf_dy = scene_SDF(position + h_y) - scene_SDF(position - h_y);
+    let sdf_dz = scene_SDF(position + h_z) - scene_SDF(position - h_z);
+
+    return normalize(vec3(sdf_dx, sdf_dy, sdf_dz));
 }

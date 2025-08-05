@@ -2,33 +2,33 @@ use egui_wgpu::wgpu;
 use std::num::NonZeroU32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct BufferGroupLayoutEntry {
+pub(crate) struct ResourceGroupLayoutEntry {
     pub(crate) visibility: wgpu::ShaderStages,
     pub(crate) ty: wgpu::BindingType,
     pub(crate) count: Option<NonZeroU32>,
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct BufferGroupDescriptor<'a> {
+pub(crate) struct ResourceGroupDescriptor<'a> {
     pub(crate) label: wgpu::Label<'a>,
-    pub(crate) buffers: &'a [&'a wgpu::Buffer],
-    pub(crate) entries: &'a [BufferGroupLayoutEntry],
+    pub(crate) resources: &'a [wgpu::BindingResource<'a>],
+    pub(crate) entries: &'a [ResourceGroupLayoutEntry],
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct FixedEntryBufferGroupDescriptor<'a> {
+pub(crate) struct FixedEntryResourceGroupDescriptor<'a> {
     pub(crate) label: wgpu::Label<'a>,
-    pub(crate) buffers: &'a [&'a wgpu::Buffer],
-    pub(crate) entry: BufferGroupLayoutEntry,
+    pub(crate) resources: &'a [wgpu::BindingResource<'a>],
+    pub(crate) entry: ResourceGroupLayoutEntry,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct BufferGroup {
+pub(crate) struct ResourceGroup {
     bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
 }
 
-impl BufferGroup {
+impl ResourceGroup {
     #[must_use]
     pub(crate) fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
         &self.bind_group_layout
@@ -60,77 +60,80 @@ trait IteratorMapToVec: Iterator + Sized {
 impl<T> IteratorMapToVec for T where T: Iterator {}
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct BufferGroupLayoutDescriptor<'a> {
+pub(crate) struct ResourceGroupLayoutDescriptor<'a> {
     pub(crate) label: wgpu::Label<'a>,
-    pub(crate) buffers: &'a [&'a wgpu::Buffer],
-    pub(crate) entries: &'a [BufferGroupLayoutEntry],
+    pub(crate) resources: &'a [wgpu::BindingResource<'a>],
+    pub(crate) entries: &'a [ResourceGroupLayoutEntry],
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct BufferGroupBindDescriptor<'a> {
+pub(crate) struct ResourceGroupBindDescriptor<'a> {
     pub(crate) label: wgpu::Label<'a>,
-    pub(crate) buffers: &'a [&'a wgpu::Buffer],
+    pub(crate) resources: &'a [wgpu::BindingResource<'a>],
     pub(crate) layout: &'a wgpu::BindGroupLayout,
 }
 
-pub(crate) trait BufferGroupInit {
-    fn create_buffer_group_layout(
+pub(crate) trait ResourceGroupInit {
+    fn create_resource_group_layout(
         &self,
-        descriptor: &BufferGroupLayoutDescriptor,
+        descriptor: &ResourceGroupLayoutDescriptor,
     ) -> wgpu::BindGroupLayout;
-    fn create_buffer_group_bind(&self, descriptor: &BufferGroupBindDescriptor) -> wgpu::BindGroup;
+    fn create_resource_group_bind(
+        &self,
+        descriptor: &ResourceGroupBindDescriptor,
+    ) -> wgpu::BindGroup;
 
-    fn create_buffer_group(&self, descriptor: &BufferGroupDescriptor) -> BufferGroup {
-        let bind_group_layout = self.create_buffer_group_layout(&BufferGroupLayoutDescriptor {
+    fn create_resource_group(&self, descriptor: &ResourceGroupDescriptor) -> ResourceGroup {
+        let bind_group_layout = self.create_resource_group_layout(&ResourceGroupLayoutDescriptor {
             label: descriptor
                 .label
                 .map(|label| format!("{label}_buffer_group_layout"))
                 .as_deref(),
-            buffers: descriptor.buffers,
+            resources: descriptor.resources,
             entries: descriptor.entries,
         });
-        let bind_group = self.create_buffer_group_bind(&BufferGroupBindDescriptor {
+        let bind_group = self.create_resource_group_bind(&ResourceGroupBindDescriptor {
             label: descriptor
                 .label
                 .map(|label| format!("{label}_buffer_group_bind"))
                 .as_deref(),
-            buffers: descriptor.buffers,
+            resources: descriptor.resources,
             layout: &bind_group_layout,
         });
 
-        BufferGroup {
+        ResourceGroup {
             bind_group_layout,
             bind_group,
         }
     }
 
     // Cannot use self.create_buffer_group to create the buffer due to ownership problems
-    fn create_fixed_entry_buffer_group(
+    fn create_fixed_entry_resource_group(
         &self,
-        descriptor: &FixedEntryBufferGroupDescriptor,
-    ) -> BufferGroup {
-        let bind_group_layout = self.create_buffer_group_layout(&BufferGroupLayoutDescriptor {
+        descriptor: &FixedEntryResourceGroupDescriptor,
+    ) -> ResourceGroup {
+        let bind_group_layout = self.create_resource_group_layout(&ResourceGroupLayoutDescriptor {
             label: descriptor
                 .label
                 .map(|label| format!("{label}_bind_group_layout"))
                 .as_deref(),
-            buffers: descriptor.buffers,
+            resources: descriptor.resources,
             entries: descriptor
-                .buffers
+                .resources
                 .iter()
                 .map_to_vec(|_| descriptor.entry)
                 .as_slice(),
         });
-        let bind_group = self.create_buffer_group_bind(&BufferGroupBindDescriptor {
+        let bind_group = self.create_resource_group_bind(&ResourceGroupBindDescriptor {
             label: descriptor
                 .label
                 .map(|label| format!("{label}_bind_group"))
                 .as_deref(),
-            buffers: descriptor.buffers,
+            resources: descriptor.resources,
             layout: &bind_group_layout,
         });
 
-        BufferGroup {
+        ResourceGroup {
             bind_group_layout,
             bind_group,
         }
@@ -138,17 +141,17 @@ pub(crate) trait BufferGroupInit {
 }
 
 // Implement functionality for foreign type using trait
-impl BufferGroupInit for wgpu::Device {
-    fn create_buffer_group_layout(
+impl ResourceGroupInit for wgpu::Device {
+    fn create_resource_group_layout(
         &self,
-        descriptor: &BufferGroupLayoutDescriptor,
+        descriptor: &ResourceGroupLayoutDescriptor,
     ) -> wgpu::BindGroupLayout {
         self.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: descriptor.label,
             entries: descriptor
-                .buffers
+                .resources
                 .iter()
-                .enumerate_map_to_vec(|(i, _)| wgpu::BindGroupLayoutEntry {
+                .enumerate_map_to_vec(|(i, _resource)| wgpu::BindGroupLayoutEntry {
                     #[allow(clippy::cast_possible_truncation)]
                     binding: i as u32,
                     visibility: descriptor.entries[i].visibility,
@@ -159,17 +162,21 @@ impl BufferGroupInit for wgpu::Device {
         })
     }
 
-    fn create_buffer_group_bind(&self, descriptor: &BufferGroupBindDescriptor) -> wgpu::BindGroup {
+    fn create_resource_group_bind(
+        &self,
+        descriptor: &ResourceGroupBindDescriptor,
+    ) -> wgpu::BindGroup {
         self.create_bind_group(&wgpu::BindGroupDescriptor {
             label: descriptor.label,
             layout: descriptor.layout,
             entries: descriptor
-                .buffers
+                .resources
                 .iter()
-                .enumerate_map_to_vec(|(i, buffer)| wgpu::BindGroupEntry {
+                .enumerate_map_to_vec(|(i, resource)| wgpu::BindGroupEntry {
                     #[allow(clippy::cast_possible_truncation)]
                     binding: i as u32,
-                    resource: buffer.as_entire_binding(),
+                    // Clone is necessary and non-problematic, since wgpu::BindingResource is small
+                    resource: (*resource).clone(),
                 })
                 .as_slice(),
         })
