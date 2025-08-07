@@ -36,10 +36,9 @@ pub(crate) struct OptionsUniformData {
     fractal_color: Vector3Packed<f32>,
     _padding1: u32,
     background_color: Vector3Packed<f32>,
-    _padding2: u32,
     fractal_group_id: u32,
     primitive_id: u32,
-    _padding3: [u32; 2],
+    _padding2: [u32; 3],
 }
 
 #[derive(Clone, Copy, Debug, Default)]

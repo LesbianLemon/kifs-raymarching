@@ -40,15 +40,6 @@ fn vs_main(
     @builtin(vertex_index) in_vertex_index: u32,
     @builtin(instance_index) in_instance_index: u32,
 ) -> VertexOutput {
-    // var out: VertexOutput;
-
-    // let x = f32(1 - i32(in_vertex_index)) * 3.;
-    // let y = f32(i32(in_vertex_index & 1u) * 2 - 1) * 3.;
-
-    // out.position = vec4(x, y, 0., 1.);
-    // out.pixel_position = vec2(x, y);
-    // return out;
-
     var out: VertexOutput;
 
     let x = f32((in_vertex_index & 1u) ^ in_instance_index);

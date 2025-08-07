@@ -17,6 +17,20 @@ fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
         .spacing([40.0, 4.0])
         .striped(true)
         .show(ui, |ui| {
+            // ui.label("Butpn");
+            // if ui.button("Button!").clicked() {
+            //     println!("boom!");
+            // }
+            // ui.end_row();
+
+            // ui.label("Checkboxxxxxxxx");
+            // ui.checkbox(&mut true, "Checkbox");
+            // ui.end_row();
+
+            // ui.label("Slajdr");
+            // ui.add(egui::Slider::new(&mut 180.0, 0.0..=360.0).suffix("°"));
+            // ui.end_row();
+
             ui.label("GUI Theme");
             let mut theme_preference = ui.ctx().options(|opt| opt.theme_preference);
             theme_preference.radio_buttons(ui);
@@ -59,56 +73,44 @@ fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
             ui.separator();
             ui.end_row();
 
-            ui.label("Butpn");
-            if ui.button("Button!").clicked() {
-                println!("boom!");
+            if let FractalGroup::KaleidoscopicIFS = gui_data.fractal_group {
+                ui.label("Primitive shape:");
+                egui::ComboBox::from_label("Shape")
+                    .selected_text(format!("{}", gui_data.primitive_shape))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut gui_data.primitive_shape,
+                            PrimitiveShape::Sphere,
+                            format!("{}", PrimitiveShape::Sphere),
+                        );
+                        ui.selectable_value(
+                            &mut gui_data.primitive_shape,
+                            PrimitiveShape::Cylinder,
+                            format!("{}", PrimitiveShape::Cylinder),
+                        );
+                        ui.selectable_value(
+                            &mut gui_data.primitive_shape,
+                            PrimitiveShape::Box,
+                            format!("{}", PrimitiveShape::Box),
+                        );
+                        ui.selectable_value(
+                            &mut gui_data.primitive_shape,
+                            PrimitiveShape::Torus,
+                            format!("{}", PrimitiveShape::Torus),
+                        );
+                        ui.selectable_value(
+                            &mut gui_data.primitive_shape,
+                            PrimitiveShape::SierpinskiTetrahedron,
+                            format!("{}", PrimitiveShape::SierpinskiTetrahedron),
+                        );
+                        ui.selectable_value(
+                            &mut gui_data.primitive_shape,
+                            PrimitiveShape::Bunny,
+                            format!("{}", PrimitiveShape::Bunny),
+                        );
+                    });
+                ui.end_row();
             }
-            ui.end_row();
-
-            ui.label("Checkboxxxxxxxx");
-            ui.checkbox(&mut true, "Checkbox");
-            ui.end_row();
-
-            ui.label("Slajdr");
-            ui.add(egui::Slider::new(&mut 180.0, 0.0..=360.0).suffix("°"));
-            ui.end_row();
-
-            ui.label("Primitive shape:");
-            egui::ComboBox::from_label("Shape")
-                .selected_text(format!("{}", gui_data.primitive_shape))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut gui_data.primitive_shape,
-                        PrimitiveShape::Sphere,
-                        format!("{}", PrimitiveShape::Sphere),
-                    );
-                    ui.selectable_value(
-                        &mut gui_data.primitive_shape,
-                        PrimitiveShape::Cylinder,
-                        format!("{}", PrimitiveShape::Cylinder),
-                    );
-                    ui.selectable_value(
-                        &mut gui_data.primitive_shape,
-                        PrimitiveShape::Box,
-                        format!("{}", PrimitiveShape::Box),
-                    );
-                    ui.selectable_value(
-                        &mut gui_data.primitive_shape,
-                        PrimitiveShape::Torus,
-                        format!("{}", PrimitiveShape::Torus),
-                    );
-                    ui.selectable_value(
-                        &mut gui_data.primitive_shape,
-                        PrimitiveShape::SierpinskiTetrahedron,
-                        format!("{}", PrimitiveShape::SierpinskiTetrahedron),
-                    );
-                    ui.selectable_value(
-                        &mut gui_data.primitive_shape,
-                        PrimitiveShape::Bunny,
-                        format!("{}", PrimitiveShape::Bunny),
-                    );
-                });
-            ui.end_row();
         });
 }
 
