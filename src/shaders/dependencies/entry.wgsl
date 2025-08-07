@@ -1,7 +1,3 @@
-const MAX_ITERATIONS = 256;
-const MAX_DISTANCE = 1000.;
-const EPSILON = 0.0001;
-
 struct Ray {
     origin: vec3<f32>,
     direction: vec3<f32>,
@@ -15,10 +11,10 @@ struct Collision {
 fn raymarch(ray: Ray) -> Collision {
     var travel_distance = 0.;
     var position = ray.origin;
-    for (var i = 0; i < MAX_ITERATIONS && travel_distance < MAX_DISTANCE; i++) {
+    for (var i = 0; i < options.max_iterations && travel_distance < options.max_distance; i++) {
         let distance = scene_SDF(position);
 
-        if distance < EPSILON {
+        if distance < options.epsilon {
             let diffuse = 0.1 + 0.9 * max(dot(get_normal(position), vec3(1., 1., 1.)), 0.);
 
             return Collision(diffuse * options.fractal_color, travel_distance);

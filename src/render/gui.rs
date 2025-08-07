@@ -1,4 +1,6 @@
-use egui::{ClippedPrimitive, Context, TexturesDelta, Ui, ViewportId};
+use egui::{
+    ClippedPrimitive, Context, DragValue, TexturesDelta, Ui, ViewportId, Window as EguiWindow,
+};
 use egui_wgpu::{Renderer, ScreenDescriptor, wgpu};
 use egui_winit::{EventResponse, State as EguiState};
 use winit::{event::WindowEvent, window::Window};
@@ -26,6 +28,39 @@ fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
             ui.separator();
             ui.end_row();
 
+            ui.strong("General fractal settings");
+            ui.end_row();
+
+            ui.label("Max iterations:");
+            ui.add(DragValue::new(&mut gui_data.max_iterations).range(1..=1000));
+            ui.end_row();
+
+            ui.label("Max distance:");
+            ui.add(DragValue::new(&mut gui_data.max_distance).range(10.0..=10000.0));
+            ui.end_row();
+
+            ui.label("Epsilon:");
+            ui.add(
+                DragValue::new(&mut gui_data.epsilon)
+                    .speed(0.000001)
+                    .range(0.000001..=1.0),
+            );
+            ui.end_row();
+
+            ui.label("Fractal color:");
+            ui.color_edit_button_srgb(&mut gui_data.fractal_color);
+            ui.end_row();
+
+            ui.label("Background color:");
+            ui.color_edit_button_srgb(&mut gui_data.background_color);
+            ui.end_row();
+
+            ui.separator();
+            ui.end_row();
+
+            ui.strong("Fractal group settings");
+            ui.end_row();
+
             ui.label("Fractal group:");
             egui::ComboBox::from_label("Group")
                 .selected_text(format!("{}", gui_data.fractal_group))
@@ -46,17 +81,6 @@ fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
                         format!("{}", FractalGroup::GeneralizedJuliaSet),
                     );
                 });
-            ui.end_row();
-
-            ui.label("Fractal color:");
-            ui.color_edit_button_srgb(&mut gui_data.fractal_color);
-            ui.end_row();
-
-            ui.label("Background color:");
-            ui.color_edit_button_srgb(&mut gui_data.background_color);
-            ui.end_row();
-
-            ui.separator();
             ui.end_row();
 
             match gui_data.fractal_group {
@@ -101,7 +125,11 @@ fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
                 FractalGroup::JuliaSet => {}
                 FractalGroup::GeneralizedJuliaSet => {
                     ui.label("Power - p:");
-                    ui.add(egui::Slider::new(&mut gui_data.power, 0. ..=10.));
+                    ui.add(
+                        DragValue::new(&mut gui_data.power)
+                            .speed(0.01)
+                            .range(1.0..=10.0),
+                    );
                     ui.end_row();
                 }
             }
@@ -185,7 +213,7 @@ impl GuiState {
         // self.egui_state.egui_ctx().begin_pass(raw_input);
 
         let full_output = self.egui_state.egui_ctx().run(raw_input, |_context| {
-            egui::Window::new("Settings Menu")
+            EguiWindow::new("Settings Menu")
                 .resizable(true)
                 .vscroll(true)
                 .default_open(false)

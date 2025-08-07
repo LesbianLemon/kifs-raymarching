@@ -18,6 +18,9 @@ struct CameraUniform {
 var<uniform> camera: CameraUniform;
 
 struct OptionsUniform {
+    max_iterations: i32,
+    max_distance: f32,
+    epsilon: f32,
     fractal_color: vec3<f32>,
     background_color: vec3<f32>,
     fractal_group_id: u32,

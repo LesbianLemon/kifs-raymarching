@@ -5,7 +5,7 @@ const JULIA_NORMAL_ITERATIONS = 10;
 fn scene_SDF(position: vec3<f32>) -> f32 {
     // Approximation breaks when too far away, so we patch it non-continuously
     let norm = length(position);
-    if norm > 2. + EPSILON {
+    if norm > 2. + options.epsilon {
         return norm - 2.;
     }
 
@@ -17,7 +17,7 @@ fn scene_SDF(position: vec3<f32>) -> f32 {
         q = quat_add(quat_sq(q), options.constant);
 
         q_sq_norm = quat_sq_norm2(q);
-        if(q_sq_norm > MAX_DISTANCE) {
+        if(q_sq_norm > options.max_distance) {
             break;
         }
 	}
@@ -47,7 +47,7 @@ fn get_normal(position: vec3<f32>) -> vec3<f32> {
         q = quat_add(quat_sq(q), options.constant); 
         q_vec = quat_as_vec(q);
         
-        if(quat_sq_norm2(q) > MAX_DISTANCE) {
+        if(quat_sq_norm2(q) > options.max_distance) {
 			break;
 		}
     }

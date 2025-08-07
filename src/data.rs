@@ -33,13 +33,17 @@ pub(crate) struct CameraUniformData {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct OptionsUniformData {
-    fractal_color: Vector3Packed<f32>,
+    max_iterations: i32,
+    max_distance: f32,
+    epsilon: f32,
     _padding1: u32,
+    fractal_color: Vector3Packed<f32>,
+    _padding2: u32,
     background_color: Vector3Packed<f32>,
     fractal_group_id: u32,
     primitive_id: u32,
     power: f32,
-    _padding2: [u32; 2],
+    _padding3: [u32; 2],
     constant: Vector4Packed<f32>,
 }
 
@@ -125,6 +129,9 @@ impl BufferDataDescriptor for CameraData {
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct GuiData {
+    pub(crate) max_iterations: u32,
+    pub(crate) max_distance: f32,
+    pub(crate) epsilon: f32,
     pub(crate) fractal_color: [u8; 3],
     pub(crate) background_color: [u8; 3],
     pub(crate) fractal_group: FractalGroup,
@@ -136,6 +143,9 @@ pub(crate) struct GuiData {
 impl Default for GuiData {
     fn default() -> Self {
         Self {
+            max_iterations: 256,
+            max_distance: 1000.,
+            epsilon: 0.0001,
             fractal_color: [200; 3],
             background_color: [0; 3],
             fractal_group: FractalGroup::default(),
@@ -148,6 +158,9 @@ impl Default for GuiData {
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct OptionsData {
+    pub(crate) max_iterations: u32,
+    pub(crate) max_distance: f32,
+    pub(crate) epsilon: f32,
     pub(crate) fractal_color: LinearRgb,
     pub(crate) background_color: LinearRgb,
     pub(crate) fractal_group: FractalGroup,
@@ -161,6 +174,9 @@ impl BufferDataDescriptor for OptionsData {
 
     fn into_buffer_data(self) -> Self::BufferData {
         Self::BufferData {
+            max_iterations: self.max_iterations as i32,
+            max_distance: self.max_distance,
+            epsilon: self.epsilon,
             fractal_color: self.fractal_color.into_packed(),
             background_color: self.background_color.into_packed(),
             fractal_group_id: self.fractal_group.id(),
@@ -175,6 +191,9 @@ impl BufferDataDescriptor for OptionsData {
 impl From<GuiData> for OptionsData {
     fn from(gui_data: GuiData) -> Self {
         Self {
+            max_iterations: gui_data.max_iterations,
+            max_distance: gui_data.max_distance,
+            epsilon: gui_data.epsilon,
             fractal_color: LinearRgb::from_srgb(
                 gui_data.fractal_color[0],
                 gui_data.fractal_color[1],

@@ -69,7 +69,7 @@ fn sierpinski_tetrahedron_SDF(position: vec3<f32>) -> f32 {
     var scale = 1.;
     var pos = position;
     var r = length(pos);
-    for(var i = 0; i < 10 && r < MAX_DISTANCE; i++) {
+    for(var i = 0; i < 10 && r < options.max_distance; i++) {
         pos = tetrahedral_fold(pos);
 
         scale *= 2.;
@@ -155,9 +155,9 @@ fn scene_SDF(position: vec3<f32>) -> f32 {
 }
 
 fn get_normal(position: vec3<f32>) -> vec3<f32> {
-    let h_x = vec3(EPSILON, 0., 0.);
-    let h_y = vec3(0., EPSILON, 0.);
-    let h_z = vec3(0., 0., EPSILON);
+    let h_x = vec3(options.epsilon, 0., 0.);
+    let h_y = vec3(0., options.epsilon, 0.);
+    let h_z = vec3(0., 0., options.epsilon);
 
     let sdf_dx = scene_SDF(position + h_x) - scene_SDF(position - h_x);
     let sdf_dy = scene_SDF(position + h_y) - scene_SDF(position - h_y);
