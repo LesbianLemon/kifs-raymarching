@@ -1,10 +1,9 @@
-use egui::Rgba;
 use winit::dpi::PhysicalSize;
 
-use crate::util::{
+use crate::{data::packed::LinearRgb, util::{
     math::{Matrix3x3, Radians, Vector2, Vector3},
     uniform::BufferDataDescriptor,
-};
+}};
 
 pub(crate) mod packed;
 pub(crate) mod scene;
@@ -31,11 +30,13 @@ pub(crate) struct CameraUniformData {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct OptionsUniformData {
+    fractal_color: Vector3Packed<f32>,
+    _padding1: u32,
+    background_color: Vector3Packed<f32>,
+    _padding2: u32,
     fractal_group_id: u32,
     primitive_id: u32,
-    _padding: [u32; 2],
-    fractal_color: Vector4Packed<f32>,
-    background_color: Vector4Packed<f32>,
+    _padding3: [u32; 2],
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -120,29 +121,29 @@ impl BufferDataDescriptor for CameraData {
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct GuiData {
-    pub(crate) fractal_group: FractalGroup,
-    pub(crate) primitive_shape: PrimitiveShape,
     pub(crate) fractal_color: [u8; 3],
     pub(crate) background_color: [u8; 3],
+    pub(crate) fractal_group: FractalGroup,
+    pub(crate) primitive_shape: PrimitiveShape,
 }
 
 impl Default for GuiData {
     fn default() -> Self {
         Self {
-            fractal_group: FractalGroup::default(),
-            primitive_shape: PrimitiveShape::default(),
             fractal_color: [200; 3],
             background_color: [0; 3],
+            fractal_group: FractalGroup::default(),
+            primitive_shape: PrimitiveShape::default(),
         }
     }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct OptionsData {
+    pub(crate) fractal_color: LinearRgb,
+    pub(crate) background_color: LinearRgb,
     pub(crate) fractal_group: FractalGroup,
     pub(crate) primitive_shape: PrimitiveShape,
-    pub(crate) fractal_color: Rgba,
-    pub(crate) background_color: Rgba,
 }
 
 impl BufferDataDescriptor for OptionsData {
@@ -150,10 +151,10 @@ impl BufferDataDescriptor for OptionsData {
 
     fn into_buffer_data(self) -> Self::BufferData {
         Self::BufferData {
-            fractal_group_id: self.fractal_group.id(),
-            primitive_id: self.primitive_shape.id(),
             fractal_color: self.fractal_color.into_packed(),
             background_color: self.background_color.into_packed(),
+            fractal_group_id: self.fractal_group.id(),
+            primitive_id: self.primitive_shape.id(),
             ..Default::default()
         }
     }
@@ -162,20 +163,18 @@ impl BufferDataDescriptor for OptionsData {
 impl From<GuiData> for OptionsData {
     fn from(gui_data: GuiData) -> Self {
         Self {
-            fractal_group: gui_data.fractal_group,
-            primitive_shape: gui_data.primitive_shape,
-            fractal_color: Rgba::from_srgba_premultiplied(
+            fractal_color: LinearRgb::from_srgb(
                 gui_data.fractal_color[0],
                 gui_data.fractal_color[1],
                 gui_data.fractal_color[2],
-                255,
             ),
-            background_color: Rgba::from_srgba_premultiplied(
+            background_color: LinearRgb::from_srgb(
                 gui_data.background_color[0],
                 gui_data.background_color[1],
                 gui_data.background_color[2],
-                255,
             ),
+            fractal_group: gui_data.fractal_group,
+            primitive_shape: gui_data.primitive_shape,
         }
     }
 }

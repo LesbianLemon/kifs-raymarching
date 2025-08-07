@@ -48,6 +48,15 @@ fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
                 });
             ui.end_row();
 
+
+            ui.label("Fractal color:");
+            ui.color_edit_button_srgb(&mut gui_data.fractal_color);
+            ui.end_row();
+
+            ui.label("Background color:");
+            ui.color_edit_button_srgb(&mut gui_data.background_color);
+            ui.end_row();
+
             ui.separator();
             ui.end_row();
 
@@ -100,14 +109,6 @@ fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
                         format!("{}", PrimitiveShape::Bunny),
                     );
                 });
-            ui.end_row();
-
-            ui.label("Fractal color:");
-            ui.color_edit_button_srgb(&mut gui_data.fractal_color);
-            ui.end_row();
-
-            ui.label("Background color:");
-            ui.color_edit_button_srgb(&mut gui_data.background_color);
             ui.end_row();
         });
 }

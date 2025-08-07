@@ -1,4 +1,4 @@
-use egui::Rgba;
+use std::ops::Deref;
 
 use crate::util::math::{Matrix3x3, Num, Radians, Vector2, Vector3, Vector4};
 
@@ -113,19 +113,58 @@ impl IntoUnpacked<Radians> for f32 {
     }
 }
 
-impl IntoPacked<Vector4Packed<f32>> for Rgba {
-    fn into_packed(self) -> Vector4Packed<f32> {
-        Vector4Packed(self[0], self[1], self[2], self[3])
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct LinearRgb([f32; 3]);
+
+impl LinearRgb {
+    fn linear_from_gamma(gamma: f32) -> f32 {
+        if gamma <= 0.04045 {
+            gamma / 12.92
+        } else {
+            ((gamma + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
+    pub(crate) fn from_rgb(r: f32, g: f32, b: f32) -> Self {
+        Self([r, g, b])
+    }
+
+    pub(crate) fn from_srgb(r: u8, g: u8, b: u8) -> Self {
+        Self([
+            Self::linear_from_gamma(r as f32 / 256.),
+            Self::linear_from_gamma(g as f32 / 256.),
+            Self::linear_from_gamma(b as f32 / 256.),
+        ])
     }
 }
 
-impl IntoUnpacked<Rgba> for Vector4Packed<f32> {
-    fn into_unpacked(self) -> Rgba {
-        Rgba::from_rgba_premultiplied(
+impl From<[u8; 3]> for LinearRgb {
+    fn from(srgb: [u8; 3]) -> Self {
+        Self::from_srgb(srgb[0], srgb[1], srgb[2])
+    }
+}
+
+// Implicitly implement all methods of [u8; 3] on Rgb
+impl Deref for LinearRgb {
+    type Target = [f32; 3];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl IntoPacked<Vector3Packed<f32>> for LinearRgb {
+    fn into_packed(self) -> Vector3Packed<f32> {
+        Vector3Packed(self[0], self[1], self[2])
+    }
+}
+
+impl IntoUnpacked<LinearRgb> for Vector3Packed<f32> {
+    fn into_unpacked(self) -> LinearRgb {
+        LinearRgb::from_rgb(
             self.0.clamp(0., 1.),
             self.1.clamp(0., 1.),
             self.2.clamp(0., 1.),
-            self.3.clamp(0., 1.),
         )
     }
 }

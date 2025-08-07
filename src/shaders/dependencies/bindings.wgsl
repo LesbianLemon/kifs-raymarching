@@ -18,10 +18,10 @@ struct CameraUniform {
 var<uniform> camera: CameraUniform;
 
 struct OptionsUniform {
+    fractal_color: vec3<f32>,
+    background_color: vec3<f32>,
     fractal_group_id: u32,
     primitive_id: u32,
-    fractal_color: vec4<f32>,
-    background_color: vec4<f32>,
 }
 
 @group(0)

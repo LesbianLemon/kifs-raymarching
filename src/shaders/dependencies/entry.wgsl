@@ -8,7 +8,7 @@ struct Ray {
 }
 
 struct Collision {
-    color: vec4<f32>,
+    color: vec3<f32>,
     travel_distance: f32,
 }
 
@@ -21,7 +21,7 @@ fn raymarch(ray: Ray) -> Collision {
         if distance < EPSILON {
             let diffuse = 0.1 + 0.9 * max(dot(get_normal(position), vec3(1., 1., 1.)), 0.);
 
-            return Collision(vec4(diffuse * options.fractal_color.xyz, options.fractal_color.w), travel_distance);
+            return Collision(diffuse * options.fractal_color, travel_distance);
         }
 
         travel_distance += distance;
@@ -67,5 +67,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let ray_direction = normalize(uv_position.x * camera.matrix[1] - uv_position.y * camera.matrix[2] - camera.matrix[0]);
     let ray = Ray(camera.origin, ray_direction);
 
-    return raymarch(ray).color;
+    return vec4(raymarch(ray).color, 1.);
 }
