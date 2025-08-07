@@ -48,7 +48,6 @@ fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
                 });
             ui.end_row();
 
-
             ui.label("Fractal color:");
             ui.color_edit_button_srgb(&mut gui_data.fractal_color);
             ui.end_row();

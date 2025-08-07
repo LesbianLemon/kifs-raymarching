@@ -1,9 +1,12 @@
 use winit::dpi::PhysicalSize;
 
-use crate::{data::packed::LinearRgb, util::{
-    math::{Matrix3x3, Radians, Vector2, Vector3},
-    uniform::BufferDataDescriptor,
-}};
+use crate::{
+    data::packed::LinearRgb,
+    util::{
+        math::{Matrix3x3, Radians, Vector2, Vector3},
+        uniform::BufferDataDescriptor,
+    },
+};
 
 pub(crate) mod packed;
 pub(crate) mod scene;
