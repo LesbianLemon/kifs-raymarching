@@ -1,5 +1,3 @@
-const p = 3.;
-const c = Quaternion(vec4(-0.1, 0.6, 0.9, -0.3));
 const w = 0.1;
 const JULIA_ITERATIONS = 100;
 const JULIA_NORMAL_ITERATIONS = 10;
@@ -16,7 +14,7 @@ fn scene_SDF(position: vec3<f32>) -> f32 {
     var dq_sq_norm = 1.;
 	for(var i = 0; i < JULIA_ITERATIONS; i++) {
 		dq_sq_norm *= 4. * q_sq_norm;
-        q = quat_add(quat_sq(q), c);
+        q = quat_add(quat_sq(q), options.constant);
 
         q_sq_norm = quat_sq_norm2(q);
         if(q_sq_norm > MAX_DISTANCE) {
@@ -46,7 +44,7 @@ fn get_normal(position: vec3<f32>) -> vec3<f32> {
             q_vec.w,       0.,       0.,  q_vec.x,
         ) * J;
 
-        q = quat_add(quat_sq(q), c); 
+        q = quat_add(quat_sq(q), options.constant); 
         q_vec = quat_as_vec(q);
         
         if(quat_sq_norm2(q) > MAX_DISTANCE) {

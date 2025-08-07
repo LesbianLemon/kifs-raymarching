@@ -22,6 +22,8 @@ struct OptionsUniform {
     background_color: vec3<f32>,
     fractal_group_id: u32,
     primitive_id: u32,
+    power: f32,
+    constant: Quaternion,
 }
 
 @group(0)

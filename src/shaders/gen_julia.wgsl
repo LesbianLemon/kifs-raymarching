@@ -1,5 +1,3 @@
-const p = 3.;
-const c = Quaternion(vec4(-0.1, 0.6, 0.9, -0.3));
 const w = 0.1;
 const JULIA_ITERATIONS = 100;
 const JULIA_NORMAL_ITERATIONS = 10;
@@ -15,8 +13,8 @@ fn scene_SDF(position: vec3<f32>) -> f32 {
     var q_sq_norm = quat_sq_norm2(q);
     var dq_sq_norm = 1.;
     for(var i = 0; i < JULIA_ITERATIONS; i++) {
-        dq_sq_norm *= p * p * pow(q_sq_norm, p - 1.);
-        q = quat_add(quat_pow(q, p), c);
+        dq_sq_norm *= options.power * options.power * pow(q_sq_norm, options.power - 1.);
+        q = quat_add(quat_pow(q, options.power), options.constant);
 
         q_sq_norm = quat_sq_norm2(q);
         if(q_sq_norm > MAX_DISTANCE) {
@@ -41,12 +39,12 @@ fn get_normal(position: vec3<f32>) -> vec3<f32> {
     var q_z_pos = Quaternion(vec4(position + h_z, w));
     var q_z_neg = Quaternion(vec4(position - h_z, w));
     for(var i = 0; i < JULIA_NORMAL_ITERATIONS; i++) {
-        q_x_pos = quat_add(quat_pow(q_x_pos, p), c);
-        q_x_neg = quat_add(quat_pow(q_x_neg, p), c);
-        q_y_pos = quat_add(quat_pow(q_y_pos, p), c);
-        q_y_neg = quat_add(quat_pow(q_y_neg, p), c);
-        q_z_pos = quat_add(quat_pow(q_z_pos, p), c);
-        q_z_neg = quat_add(quat_pow(q_z_neg, p), c);
+        q_x_pos = quat_add(quat_pow(q_x_pos, options.power), options.constant);
+        q_x_neg = quat_add(quat_pow(q_x_neg, options.power), options.constant);
+        q_y_pos = quat_add(quat_pow(q_y_pos, options.power), options.constant);
+        q_y_neg = quat_add(quat_pow(q_y_neg, options.power), options.constant);
+        q_z_pos = quat_add(quat_pow(q_z_pos, options.power), options.constant);
+        q_z_neg = quat_add(quat_pow(q_z_neg, options.power), options.constant);
     }
 
     return normalize(vec3(

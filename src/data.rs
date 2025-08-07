@@ -3,7 +3,7 @@ use winit::dpi::PhysicalSize;
 use crate::{
     data::packed::LinearRgb,
     util::{
-        math::{Matrix3x3, Radians, Vector2, Vector3},
+        math::{Matrix3x3, Radians, Vector2, Vector3, Vector4},
         uniform::BufferDataDescriptor,
     },
 };
@@ -38,7 +38,9 @@ pub(crate) struct OptionsUniformData {
     background_color: Vector3Packed<f32>,
     fractal_group_id: u32,
     primitive_id: u32,
-    _padding2: [u32; 3],
+    power: f32,
+    _padding2: [u32; 2],
+    constant: Vector4Packed<f32>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -127,6 +129,8 @@ pub(crate) struct GuiData {
     pub(crate) background_color: [u8; 3],
     pub(crate) fractal_group: FractalGroup,
     pub(crate) primitive_shape: PrimitiveShape,
+    pub(crate) power: f32,
+    pub(crate) constant: Vector4<f32>,
 }
 
 impl Default for GuiData {
@@ -136,6 +140,8 @@ impl Default for GuiData {
             background_color: [0; 3],
             fractal_group: FractalGroup::default(),
             primitive_shape: PrimitiveShape::default(),
+            power: 2.,
+            constant: Vector4(-0.1, 0.6, 0.9, -0.3),
         }
     }
 }
@@ -146,6 +152,8 @@ pub(crate) struct OptionsData {
     pub(crate) background_color: LinearRgb,
     pub(crate) fractal_group: FractalGroup,
     pub(crate) primitive_shape: PrimitiveShape,
+    pub(crate) power: f32,
+    pub(crate) constant: Vector4<f32>,
 }
 
 impl BufferDataDescriptor for OptionsData {
@@ -157,6 +165,8 @@ impl BufferDataDescriptor for OptionsData {
             background_color: self.background_color.into_packed(),
             fractal_group_id: self.fractal_group.id(),
             primitive_id: self.primitive_shape.id(),
+            power: self.power,
+            constant: self.constant.into_packed(),
             ..Default::default()
         }
     }
@@ -177,6 +187,8 @@ impl From<GuiData> for OptionsData {
             ),
             fractal_group: gui_data.fractal_group,
             primitive_shape: gui_data.primitive_shape,
+            power: gui_data.power,
+            constant: gui_data.constant,
         }
     }
 }

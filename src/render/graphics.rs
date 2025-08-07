@@ -130,6 +130,7 @@ impl GraphicState {
             dependencies: &[
                 shader_source!("dependencies/bindings.wgsl"),
                 shader_source!("dependencies/entry.wgsl"),
+                shader_source!("dependencies/quaternions.wgsl"),
             ],
         });
         let kifs_pipeline = Self::create_render_pipeline(
