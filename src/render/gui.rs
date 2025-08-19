@@ -247,11 +247,11 @@ impl GuiState {
     /// - `GUINotConfiguredError` when tried to render unconfigured GUI
     pub(crate) fn render(
         &mut self,
-        render_pass: wgpu::RenderPass,
+        render_pass: &mut wgpu::RenderPass<'static>,
         screen_descriptor: &ScreenDescriptor,
     ) -> Result<(), GUIUnconfiguredError> {
         self.renderer.render(
-            &mut render_pass.forget_lifetime(),
+            render_pass,
             self.tris.as_mut().ok_or(GUIUnconfiguredError)?,
             screen_descriptor,
         );

@@ -8,7 +8,9 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::error::{ApplicationError, RenderError, RenderStateUnconfiguredError};
+use crate::error::{
+    ApplicationError, RenderError, RenderStateUnconfiguredError, SurfaceMissizedError,
+};
 use crate::render::{RenderState, RenderStateOptions};
 
 pub struct Application {
@@ -61,12 +63,16 @@ impl Application {
                 RenderStateUnconfiguredError,
             ))?;
 
-        match state.render() {
+        let render_result = state.render();
+        match render_result {
             Err(RenderError::Surface(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated)) => {
                 state.resize(state.size());
             }
-            Err(RenderError::Surface(wgpu::SurfaceError::Timeout)) => {
-                log::warn!("Surface timed out");
+            Err(
+                RenderError::Surface(wgpu::SurfaceError::Timeout)
+                | RenderError::SurfaceMissized(SurfaceMissizedError),
+            ) => {
+                log::warn!("{}", render_result.err().unwrap());
             }
             Err(error) => {
                 return Err(error.into());

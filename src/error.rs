@@ -42,6 +42,17 @@ impl fmt::Display for RenderStateUnconfiguredError {
 impl_error!(RenderStateUnconfiguredError);
 
 #[derive(Clone, Copy, Debug)]
+pub struct SurfaceMissizedError;
+
+impl fmt::Display for SurfaceMissizedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Surface and window sizes differed when rendering")
+    }
+}
+
+impl_error!(SurfaceMissizedError);
+
+#[derive(Clone, Copy, Debug)]
 pub struct GUIUnconfiguredError;
 
 impl fmt::Display for GUIUnconfiguredError {
@@ -55,13 +66,15 @@ impl_error!(GUIUnconfiguredError);
 #[derive(Clone, Debug)]
 pub enum RenderError {
     Surface(wgpu::SurfaceError),
+    SurfaceMissized(SurfaceMissizedError),
     GUIUnconfigured(GUIUnconfiguredError),
 }
 
-impl_enum_error_display!(RenderError{ ::Surface ::GUIUnconfigured });
+impl_enum_error_display!(RenderError{ ::Surface ::SurfaceMissized ::GUIUnconfigured });
 impl_error!(RenderError);
 
 impl_enum_from!(error: wgpu::SurfaceError -> RenderError::Surface(error));
+impl_enum_from!(error: SurfaceMissizedError -> RenderError::SurfaceMissized(error));
 impl_enum_from!(error: GUIUnconfiguredError -> RenderError::GUIUnconfigured(error));
 
 #[derive(Clone, Debug)]
@@ -98,4 +111,5 @@ impl_enum_from!(error: wgpu::RequestAdapterError -> ApplicationError::RenderStat
 impl_enum_from!(error: wgpu::RequestDeviceError -> ApplicationError::RenderState(error.into()));
 impl_enum_from!(error: RenderError -> ApplicationError::Render(error));
 impl_enum_from!(error: wgpu::SurfaceError -> ApplicationError::Render(error.into()));
+impl_enum_from!(error: SurfaceMissizedError -> ApplicationError::Render(error.into()));
 impl_enum_from!(error: GUIUnconfiguredError -> ApplicationError::Render(error.into()));

@@ -11,7 +11,7 @@ use winit::{
     window::Window,
 };
 
-use crate::error::{RenderError, RenderStateError};
+use crate::error::{RenderError, RenderStateError, SurfaceMissizedError};
 use crate::util::math::Radians;
 
 pub(crate) mod graphics;
@@ -269,6 +269,23 @@ impl RenderState {
         }
     }
 
+    // Due to weird ass bullshit this check is needed sometime i guess idk wtf
+    pub(crate) fn check_surface_missized(
+        &self,
+        surface_texture: &wgpu::SurfaceTexture,
+    ) -> Result<(), SurfaceMissizedError> {
+        let surface_physical_size = PhysicalSize {
+            width: surface_texture.texture.width(),
+            height: surface_texture.texture.height(),
+        };
+
+        if surface_physical_size != self.window.inner_size() {
+            return Err(SurfaceMissizedError);
+        }
+
+        Ok(())
+    }
+
     /// ## Errors
     /// - `RenderError::Surface(SurfaceError)` when getting current surface texture failed
     /// - `RenderError::GUINotConfigured(GUINotConfiguredError)` when tried to render unconfigured GUI
@@ -305,24 +322,32 @@ impl RenderState {
 
         // Drawing and rendering calls happen here
         {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("render_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Discard,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
+            // GUI rendering requires 'static lifetime render pass, so we forget the lifetime
+            let mut render_pass = encoder
+                .begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("render_pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Discard,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    occlusion_query_set: None,
+                    timestamp_writes: None,
+                })
+                .forget_lifetime();
+
+            self.check_surface_missized(&surface_texture)?;
 
             self.graphic_state.render(&mut render_pass);
             // Execute GUI rendering last so it stays on top of our graphics and because it consumes the render_pass
-            self.gui_state.render(render_pass, &screen_descriptor)?;
+            self.gui_state
+                .render(&mut render_pass, &screen_descriptor)?;
+
+            drop(render_pass);
         }
 
         // Submit the queue to the GPU and present the changed surface
@@ -332,10 +357,10 @@ impl RenderState {
 
         self.frametimes
             .push(Instant::now().duration_since(start_time));
-        println!(
-            "Frame time: {}ms",
-            self.frametimes.iter().sum::<Duration>().as_millis()
-        );
+        // println!(
+        //     "Frame time: {}ms",
+        //     self.frametimes.iter().sum::<Duration>().as_millis()
+        // );
 
         // Request a window redraw
         // This is not what I want to do, but currently have no better solution
