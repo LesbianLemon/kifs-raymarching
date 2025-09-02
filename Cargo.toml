@@ -14,7 +14,8 @@ log = "0.4.27"
 num-traits = "0.2.19"
 num-derive = "0.4.2"
 pollster = "0.4.0"
+strum = "0.27.2"
+strum_macros = "0.27.2"
 winit = { version = "0.30.12", features = ["rwh_06"] }
 # This is a temporary fix until egui_wgpu performs a fix
 wgpu = "25.0.2" # enables the wgpu default features so we get the default backends
-

@@ -1,8 +1,8 @@
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
 use std::fmt;
+use strum_macros::{FromRepr, EnumIter};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, FromPrimitive)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, FromRepr, EnumIter)]
+#[repr(u32)]
 pub(crate) enum FractalGroup {
     #[default]
     KaleidoscopicIFS = 0,
@@ -16,13 +16,9 @@ impl FractalGroup {
         self as u32
     }
 
-    // Defaults to FractalGroup::KaleidoscopicIFS if the id is invalid
     #[must_use]
-    pub(crate) fn from_id(id: u32) -> Self {
-        match FractalGroup::from_u32(id) {
-            Some(group) => group,
-            _ => FractalGroup::KaleidoscopicIFS,
-        }
+    pub(crate) fn from_id(id: u32) -> Option<Self> {
+        FractalGroup::from_repr(id)
     }
 }
 
@@ -36,7 +32,8 @@ impl fmt::Display for FractalGroup {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, FromPrimitive)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, FromRepr, EnumIter)]
+#[repr(u32)]
 pub(crate) enum PrimitiveShape {
     #[default]
     Sphere = 0,
@@ -53,13 +50,9 @@ impl PrimitiveShape {
         self as u32
     }
 
-    // Defaults to PrimitiveShape::Sphere if the id is invalid
     #[must_use]
-    pub(crate) fn from_id(id: u32) -> Self {
-        match FromPrimitive::from_u32(id) {
-            Some(shape) => shape,
-            _ => PrimitiveShape::Sphere,
-        }
+    pub(crate) fn from_id(id: u32) -> Option<Self> {
+        PrimitiveShape::from_repr(id)
     }
 }
 

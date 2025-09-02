@@ -3,6 +3,7 @@ use egui::{
 };
 use egui_wgpu::{Renderer, ScreenDescriptor, wgpu};
 use egui_winit::{EventResponse, State as EguiState};
+use strum::IntoEnumIterator as _;
 use winit::{event::WindowEvent, window::Window};
 
 use crate::{
@@ -12,6 +13,136 @@ use crate::{
     },
     error::GUIUnconfiguredError,
 };
+
+fn general_section(ui: &mut Ui, gui_data: &mut GuiData) {
+    ui.strong("General fractal settings");
+    ui.end_row();
+
+    ui.label("Max iterations:");
+    ui.add(DragValue::new(&mut gui_data.max_iterations).range(1..=1000)).on_hover_text("How many iterations to use when raymarching");
+    ui.end_row();
+
+    ui.label("Max distance:");
+    ui.add(DragValue::new(&mut gui_data.max_distance).range(10.0..=10000.0)).on_hover_text("Maxim distance before we stop rendering");
+    ui.end_row();
+
+    ui.label("Epsilon:");
+    ui.add(
+        DragValue::new(&mut gui_data.epsilon)
+            .speed(0.000001)
+            .range(0.000001..=1.0),
+    ).on_hover_text("Margin of error considered to be a hit");
+    ui.end_row();
+
+    ui.label("Fractal color:");
+    ui.color_edit_button_srgb(&mut gui_data.fractal_color);
+    ui.end_row();
+
+    ui.label("Background color:");
+    ui.color_edit_button_srgb(&mut gui_data.background_color);
+    ui.end_row();
+}
+
+fn julia_description(ui: &mut Ui, gui_data: &mut GuiData) {
+    ui.label("Quaternion function:");
+    ui.label(format!(
+        "f(q) = q^{} + c",
+        match gui_data.fractal_group {
+            FractalGroup::GeneralizedJuliaSet => format!("{}", gui_data.power),
+            _ => "2".to_string()
+        }
+    )).on_hover_text("Map points that do not converge to infinity under the iteration of this function");
+}
+
+fn julia_power(ui: &mut Ui, gui_data: &mut GuiData) {
+    ui.label("Power variable:");
+    ui.add(
+        DragValue::new(&mut gui_data.power)
+            .speed(0.01)
+            .range(1.0..=10.0),
+    ).on_hover_text("Power variable in quaternion function");
+}
+
+fn julia_constant(ui: &mut Ui, gui_data: &mut GuiData) {
+    ui.label("Constant variable:");
+    ui.group(|ui| {
+        ui.add(
+        DragValue::new(&mut gui_data.constant.0)
+            .speed(0.01)
+            .range(-1.0..=1.0),
+        ).on_hover_text("Constant variable in quaternion function");
+        ui.label(" + ");
+        ui.add(
+        DragValue::new(&mut gui_data.constant.1)
+            .speed(0.01)
+            .range(-1.0..=1.0),
+        ).on_hover_text("Constant variable in quaternion function");
+        ui.label(" + ");
+        ui.add(
+        DragValue::new(&mut gui_data.constant.2)
+            .speed(0.01)
+            .range(-1.0..=1.0),
+        ).on_hover_text("Constant variable in quaternion function");
+        ui.label(" + ");
+        ui.add(
+        DragValue::new(&mut gui_data.constant.3)
+            .speed(0.01)
+            .range(-1.0..=1.0),
+        ).on_hover_text("Constant variable in quaternion function");
+    });
+}
+
+fn fractal_group_section(ui: &mut Ui, gui_data: &mut GuiData) {
+    ui.strong("Fractal group settings");
+    ui.end_row();
+
+    ui.label("Fractal group:");
+    egui::ComboBox::from_label("Group")
+        .selected_text(format!("{}", gui_data.fractal_group))
+        .show_ui(ui, |ui| {
+            for group in FractalGroup::iter() {
+                ui.selectable_value(
+                    &mut gui_data.fractal_group,
+                    group,
+                    format!("{}", group),
+                );
+            }
+        });
+    ui.end_row();
+
+    match gui_data.fractal_group {
+        FractalGroup::KaleidoscopicIFS => {
+            ui.label("Primitive shape:");
+            egui::ComboBox::from_label("Shape")
+                .selected_text(format!("{}", gui_data.primitive_shape))
+                .show_ui(ui, |ui| {
+                    for shape in PrimitiveShape::iter() {
+                        ui.selectable_value(
+                            &mut gui_data.primitive_shape,
+                            shape,
+                            format!("{}", shape),
+                        );
+                    }
+                });
+            ui.end_row();
+        }
+        FractalGroup::JuliaSet => {
+            julia_description(ui, gui_data);
+            ui.end_row();
+
+            julia_constant(ui, gui_data);
+        }
+        FractalGroup::GeneralizedJuliaSet => {
+            julia_description(ui, gui_data);
+            ui.end_row();
+
+            julia_power(ui, gui_data);
+            ui.end_row();
+
+            julia_constant(ui, gui_data);
+        }
+    }
+}
 
 fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
     egui::Grid::new("main_grid")
@@ -25,114 +156,14 @@ fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
             ui.ctx().set_theme(theme_preference);
             ui.end_row();
 
-            ui.separator();
+            ui.add_space(12.);
+
+            general_section(ui, gui_data);
+
+            ui.add_space(12.);
             ui.end_row();
 
-            ui.strong("General fractal settings");
-            ui.end_row();
-
-            ui.label("Max iterations:");
-            ui.add(DragValue::new(&mut gui_data.max_iterations).range(1..=1000));
-            ui.end_row();
-
-            ui.label("Max distance:");
-            ui.add(DragValue::new(&mut gui_data.max_distance).range(10.0..=10000.0));
-            ui.end_row();
-
-            ui.label("Epsilon:");
-            ui.add(
-                DragValue::new(&mut gui_data.epsilon)
-                    .speed(0.000001)
-                    .range(0.000001..=1.0),
-            );
-            ui.end_row();
-
-            ui.label("Fractal color:");
-            ui.color_edit_button_srgb(&mut gui_data.fractal_color);
-            ui.end_row();
-
-            ui.label("Background color:");
-            ui.color_edit_button_srgb(&mut gui_data.background_color);
-            ui.end_row();
-
-            ui.separator();
-            ui.end_row();
-
-            ui.strong("Fractal group settings");
-            ui.end_row();
-
-            ui.label("Fractal group:");
-            egui::ComboBox::from_label("Group")
-                .selected_text(format!("{}", gui_data.fractal_group))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut gui_data.fractal_group,
-                        FractalGroup::KaleidoscopicIFS,
-                        format!("{}", FractalGroup::KaleidoscopicIFS),
-                    );
-                    ui.selectable_value(
-                        &mut gui_data.fractal_group,
-                        FractalGroup::JuliaSet,
-                        format!("{}", FractalGroup::JuliaSet),
-                    );
-                    ui.selectable_value(
-                        &mut gui_data.fractal_group,
-                        FractalGroup::GeneralizedJuliaSet,
-                        format!("{}", FractalGroup::GeneralizedJuliaSet),
-                    );
-                });
-            ui.end_row();
-
-            match gui_data.fractal_group {
-                FractalGroup::KaleidoscopicIFS => {
-                    ui.label("Primitive shape:");
-                    egui::ComboBox::from_label("Shape")
-                        .selected_text(format!("{}", gui_data.primitive_shape))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut gui_data.primitive_shape,
-                                PrimitiveShape::Sphere,
-                                format!("{}", PrimitiveShape::Sphere),
-                            );
-                            ui.selectable_value(
-                                &mut gui_data.primitive_shape,
-                                PrimitiveShape::Cylinder,
-                                format!("{}", PrimitiveShape::Cylinder),
-                            );
-                            ui.selectable_value(
-                                &mut gui_data.primitive_shape,
-                                PrimitiveShape::Box,
-                                format!("{}", PrimitiveShape::Box),
-                            );
-                            ui.selectable_value(
-                                &mut gui_data.primitive_shape,
-                                PrimitiveShape::Torus,
-                                format!("{}", PrimitiveShape::Torus),
-                            );
-                            ui.selectable_value(
-                                &mut gui_data.primitive_shape,
-                                PrimitiveShape::SierpinskiTetrahedron,
-                                format!("{}", PrimitiveShape::SierpinskiTetrahedron),
-                            );
-                            ui.selectable_value(
-                                &mut gui_data.primitive_shape,
-                                PrimitiveShape::Bunny,
-                                format!("{}", PrimitiveShape::Bunny),
-                            );
-                        });
-                    ui.end_row();
-                }
-                FractalGroup::JuliaSet => {}
-                FractalGroup::GeneralizedJuliaSet => {
-                    ui.label("Power - p:");
-                    ui.add(
-                        DragValue::new(&mut gui_data.power)
-                            .speed(0.01)
-                            .range(1.0..=10.0),
-                    );
-                    ui.end_row();
-                }
-            }
+            fractal_group_section(ui, gui_data);
         });
 }
 
