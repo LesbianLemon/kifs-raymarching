@@ -1,5 +1,5 @@
 use std::fmt;
-use strum_macros::{FromRepr, EnumIter};
+use strum_macros::{EnumIter, FromRepr};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, FromRepr, EnumIter)]
 #[repr(u32)]

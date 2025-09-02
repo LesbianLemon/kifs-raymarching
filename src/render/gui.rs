@@ -19,11 +19,13 @@ fn general_section(ui: &mut Ui, gui_data: &mut GuiData) {
     ui.end_row();
 
     ui.label("Max iterations:");
-    ui.add(DragValue::new(&mut gui_data.max_iterations).range(1..=1000)).on_hover_text("How many iterations to use when raymarching");
+    ui.add(DragValue::new(&mut gui_data.max_iterations).range(1..=1000))
+        .on_hover_text("How many iterations to use when raymarching");
     ui.end_row();
 
     ui.label("Max distance:");
-    ui.add(DragValue::new(&mut gui_data.max_distance).range(10.0..=10000.0)).on_hover_text("Maxim distance before we stop rendering");
+    ui.add(DragValue::new(&mut gui_data.max_distance).range(10.0..=10000.0))
+        .on_hover_text("Maxim distance before we stop rendering");
     ui.end_row();
 
     ui.label("Epsilon:");
@@ -31,7 +33,8 @@ fn general_section(ui: &mut Ui, gui_data: &mut GuiData) {
         DragValue::new(&mut gui_data.epsilon)
             .speed(0.000001)
             .range(0.000001..=1.0),
-    ).on_hover_text("Margin of error considered to be a hit");
+    )
+    .on_hover_text("Margin of error considered to be a hit");
     ui.end_row();
 
     ui.label("Fractal color:");
@@ -49,9 +52,12 @@ fn julia_description(ui: &mut Ui, gui_data: &mut GuiData) {
         "f(q) = q^{} + c",
         match gui_data.fractal_group {
             FractalGroup::GeneralizedJuliaSet => format!("{}", gui_data.power),
-            _ => "2".to_string()
+            _ => "2".to_string(),
         }
-    )).on_hover_text("Map points that do not converge to infinity under the iteration of this function");
+    ))
+    .on_hover_text(
+        "Map points that do not converge to infinity under the iteration of this function",
+    );
 }
 
 fn julia_power(ui: &mut Ui, gui_data: &mut GuiData) {
@@ -60,35 +66,40 @@ fn julia_power(ui: &mut Ui, gui_data: &mut GuiData) {
         DragValue::new(&mut gui_data.power)
             .speed(0.01)
             .range(1.0..=10.0),
-    ).on_hover_text("Power variable in quaternion function");
+    )
+    .on_hover_text("Power variable in quaternion function");
 }
 
 fn julia_constant(ui: &mut Ui, gui_data: &mut GuiData) {
     ui.label("Constant variable:");
     ui.group(|ui| {
         ui.add(
-        DragValue::new(&mut gui_data.constant.0)
-            .speed(0.01)
-            .range(-1.0..=1.0),
-        ).on_hover_text("Constant variable in quaternion function");
+            DragValue::new(&mut gui_data.constant.0)
+                .speed(0.01)
+                .range(-1.0..=1.0),
+        )
+        .on_hover_text("Constant variable in quaternion function");
         ui.label(" + ");
         ui.add(
-        DragValue::new(&mut gui_data.constant.1)
-            .speed(0.01)
-            .range(-1.0..=1.0),
-        ).on_hover_text("Constant variable in quaternion function");
+            DragValue::new(&mut gui_data.constant.1)
+                .speed(0.01)
+                .range(-1.0..=1.0),
+        )
+        .on_hover_text("Constant variable in quaternion function");
         ui.label(" + ");
         ui.add(
-        DragValue::new(&mut gui_data.constant.2)
-            .speed(0.01)
-            .range(-1.0..=1.0),
-        ).on_hover_text("Constant variable in quaternion function");
+            DragValue::new(&mut gui_data.constant.2)
+                .speed(0.01)
+                .range(-1.0..=1.0),
+        )
+        .on_hover_text("Constant variable in quaternion function");
         ui.label(" + ");
         ui.add(
-        DragValue::new(&mut gui_data.constant.3)
-            .speed(0.01)
-            .range(-1.0..=1.0),
-        ).on_hover_text("Constant variable in quaternion function");
+            DragValue::new(&mut gui_data.constant.3)
+                .speed(0.01)
+                .range(-1.0..=1.0),
+        )
+        .on_hover_text("Constant variable in quaternion function");
     });
 }
 
@@ -101,11 +112,7 @@ fn fractal_group_section(ui: &mut Ui, gui_data: &mut GuiData) {
         .selected_text(format!("{}", gui_data.fractal_group))
         .show_ui(ui, |ui| {
             for group in FractalGroup::iter() {
-                ui.selectable_value(
-                    &mut gui_data.fractal_group,
-                    group,
-                    format!("{}", group),
-                );
+                ui.selectable_value(&mut gui_data.fractal_group, group, format!("{}", group));
             }
         });
     ui.end_row();
