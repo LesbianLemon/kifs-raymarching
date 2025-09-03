@@ -1,4 +1,4 @@
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{Add, Div, Index, IndexMut, Mul, Neg, Sub};
 
 pub(crate) trait Num: num_traits::Num {}
 
@@ -91,6 +91,32 @@ macro_rules! impl_vector_partial_eq {
                     T::from(EPSILON).expect("Can only compare values that can be cast to from f32");
 
                 (self.$field_head - other.$field_head).abs() < epsilon_t $(&& (self.$field_tail - other.$field_tail).abs() < epsilon_t)*
+            }
+        }
+    };
+}
+
+macro_rules! impl_vector_index {
+    ($Vector:ident{$(.$field:tt)+}) => {
+        impl<T> Index<usize> for $Vector<T>
+        {
+            type Output = T;
+
+            fn index(&self, index: usize) -> &Self::Output {
+                match index {
+                    $($field => &self.$field),+,
+                    _ => panic!("Index out of bounds")
+                }
+            }
+        }
+
+        impl<T> IndexMut<usize> for $Vector<T>
+        {
+            fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+                match index {
+                    $($field => &mut self.$field),+,
+                    _ => panic!("Index out of bounds")
+                }
             }
         }
     };
@@ -215,6 +241,7 @@ impl_vector_functionality!(Vector2);
 impl_vector_extend!(Vector2{ .0 .1 } -> Vector3{ .0 .1 .2 });
 
 impl_vector_partial_eq!(Vector2{ .0 .1 });
+impl_vector_index!(Vector2{ .0 .1 });
 
 impl_vector_negation_addition_subtraction!(<T> Vector2<T>{ .0 .1 });
 impl_vector_scalar_operations!(<T> Vector2<T>{ .0 .1 });
@@ -228,6 +255,7 @@ impl_vector_extend!(Vector3{ .0 .1 .2 } -> Vector4{ .0 .1 .2 .3 });
 impl_vector_shrink!(Vector3{ .0 .1 .2 } -> Vector2{ .0 .1 });
 
 impl_vector_partial_eq!(Vector3{ .0 .1 .2 });
+impl_vector_index!(Vector3{ .0 .1 .2 });
 
 impl_vector_negation_addition_subtraction!(<T> Vector3<T>{ .0 .1 .2 });
 impl_vector_scalar_operations!(<T> Vector3<T>{ .0 .1 .2 });
@@ -240,6 +268,7 @@ impl_vector_functionality!(Vector4);
 impl_vector_shrink!(Vector4{ .0 .1 .2 .3 } -> Vector3{ .0 .1 .2 });
 
 impl_vector_partial_eq!(Vector4{ .0 .1 .2 .3 });
+impl_vector_index!(Vector4{ .0 .1 .2 .3 });
 
 impl_vector_negation_addition_subtraction!(<T> Vector4<T>{ .0 .1 .2 .3 });
 impl_vector_scalar_operations!(<T> Vector4<T>{ .0 .1 .2 .3 });
