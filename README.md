@@ -1,5 +1,7 @@
 # Fractal Ray Marching
 
+![3d julia fractal](https://github.com/user-attachments/assets/444b6a4c-6df7-44e2-9993-6014cfc31c6c)
+
 ## Opis
 Program za izris 3D fraktalnih struktur kot so 3D Juliajeve množice, generirane v kvaternionskem prostoru (in KIFS - work in progress).
 
