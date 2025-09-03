@@ -131,9 +131,9 @@ impl LinearRgb {
 
     pub(crate) fn from_srgb(r: u8, g: u8, b: u8) -> Self {
         Self([
-            Self::linear_from_gamma(r as f32 / 256.),
-            Self::linear_from_gamma(g as f32 / 256.),
-            Self::linear_from_gamma(b as f32 / 256.),
+            Self::linear_from_gamma(f32::from(r) / 256.),
+            Self::linear_from_gamma(f32::from(g) / 256.),
+            Self::linear_from_gamma(f32::from(b) / 256.),
         ])
     }
 }

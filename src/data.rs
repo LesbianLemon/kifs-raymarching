@@ -174,6 +174,7 @@ impl BufferDataDescriptor for OptionsData {
 
     fn into_buffer_data(self) -> Self::BufferData {
         Self::BufferData {
+            #[allow(clippy::cast_possible_wrap)]
             max_iterations: self.max_iterations as i32,
             max_distance: self.max_distance,
             epsilon: self.epsilon,

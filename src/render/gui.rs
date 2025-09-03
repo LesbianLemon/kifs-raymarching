@@ -1,5 +1,6 @@
 use egui::{
-    ClippedPrimitive, Context, DragValue, Label, RichText, TexturesDelta, Ui, Vec2, ViewportId, Window as EguiWindow
+    ClippedPrimitive, Context, DragValue, Label, RichText, TexturesDelta, Ui, Vec2, ViewportId,
+    Window as EguiWindow,
 };
 use egui_wgpu::{Renderer, ScreenDescriptor, wgpu};
 use egui_winit::{EventResponse, State as EguiState};
@@ -34,8 +35,8 @@ fn general_section(ui: &mut Ui, gui_data: &mut GuiData) {
         .on_hover_text("Accuracy of calculation");
     ui.add(
         DragValue::new(&mut gui_data.epsilon)
-            .speed(0.000001)
-            .range(0.000001..=1.0),
+            .speed(0.000_001)
+            .range(0.000_001..=1.0),
     )
     .on_hover_text("Accuracy of calculations");
     ui.end_row();
@@ -57,9 +58,8 @@ fn julia_description(ui: &mut Ui, gui_data: &mut GuiData) {
     ).wrap());
     ui.end_row();
 
-    ui.label("Quaternion function:").on_hover_text(
-        "Function used to construct the Julia set",
-    );
+    ui.label("Quaternion function:")
+        .on_hover_text("Function used to construct the Julia set");
     ui.label(format!(
         "f(q) = q^{} + ({}, {}, {}, {})",
         match gui_data.fractal_group {
@@ -71,9 +71,7 @@ fn julia_description(ui: &mut Ui, gui_data: &mut GuiData) {
         gui_data.constant.2,
         gui_data.constant.3,
     ))
-    .on_hover_text(
-        "Function used to construct the Julia set",
-    );
+    .on_hover_text("Function used to construct the Julia set");
     ui.end_row();
 }
 
@@ -116,7 +114,7 @@ fn fractal_group_section(ui: &mut Ui, gui_data: &mut GuiData) {
         .selected_text(format!("{}", gui_data.fractal_group))
         .show_ui(ui, |ui| {
             for group in FractalGroup::iter() {
-                ui.selectable_value(&mut gui_data.fractal_group, group, format!("{}", group));
+                ui.selectable_value(&mut gui_data.fractal_group, group, format!("{group}"));
             }
         });
     ui.end_row();
@@ -124,12 +122,17 @@ fn fractal_group_section(ui: &mut Ui, gui_data: &mut GuiData) {
     match gui_data.fractal_group {
         FractalGroup::KaleidoscopicIFS => {
             ui.label("Description:");
-            ui.add(Label::new(
-                RichText::new("Currently can only display preset shapes. No fractals :-(.").italics()
-            ).wrap());
+            ui.add(
+                Label::new(
+                    RichText::new("Currently can only display preset shapes. No fractals :-(.")
+                        .italics(),
+                )
+                .wrap(),
+            );
             ui.end_row();
 
-            ui.label("Preset shapes:").on_hover_text("Choose one of the preset shapes to display");
+            ui.label("Preset shapes:")
+                .on_hover_text("Choose one of the preset shapes to display");
             egui::ComboBox::from_label("Shape")
                 .selected_text(format!("{}", gui_data.primitive_shape))
                 .show_ui(ui, |ui| {
@@ -137,7 +140,7 @@ fn fractal_group_section(ui: &mut Ui, gui_data: &mut GuiData) {
                         ui.selectable_value(
                             &mut gui_data.primitive_shape,
                             shape,
-                            format!("{}", shape),
+                            format!("{shape}"),
                         );
                     }
                 });
@@ -179,9 +182,7 @@ fn update_ui(ui: &mut Ui, gui_data: &mut GuiData) {
 
     ui.add_space(16.);
     ui.separator();
-    ui.label(
-        RichText::new("Tip: Hover over some items for an explanation").italics(),
-    );
+    ui.label(RichText::new("Tip: Hover over some items for an explanation").italics());
 }
 
 pub(crate) struct GuiState {
