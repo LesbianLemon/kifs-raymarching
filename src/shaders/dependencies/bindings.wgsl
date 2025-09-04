@@ -23,6 +23,7 @@ struct OptionsUniform {
     epsilon: f32,
     fractal_color: vec3<f32>,
     background_color: vec3<f32>,
+    is_heatmap: u32,
     fractal_group_id: u32,
     primitive_id: u32,
     power: f32,

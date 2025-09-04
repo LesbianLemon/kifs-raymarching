@@ -4,23 +4,28 @@ struct Ray {
 }
 
 fn raymarch(ray: Ray) -> vec4<f32> {
+    var output_color = vec4(options.background_color, 1.);
+
     var travel_distance = 0.;
     var position = ray.origin;
-    for (var i = 0; i < options.max_iterations && travel_distance < options.max_distance; i++) {
+    var i: i32;
+    for (i = 0; i < options.max_iterations && travel_distance < options.max_distance; i++) {
         let distance = scene_SDF(position);
 
         if distance < options.epsilon {
             let normal = get_normal(position);
             let diffuse = 0.1 + 0.9 * clamp(dot(normal, vec3(1., 1., 1.)), 0., 1.);
 
-            return vec4(diffuse * options.fractal_color, 1.);
+            output_color = vec4(diffuse * options.fractal_color, 1.);
+            break;
         }
 
         travel_distance += distance;
         position = ray.origin + travel_distance * ray.direction;
     }
 
-    return vec4(options.background_color, 1.);
+    let heatmap_color = vec4(f32(i) / f32(options.max_iterations) * options.fractal_color, 1.);
+    return select(output_color, heatmap_color, bool(options.is_heatmap));
 }
 
 struct VertexOutput {

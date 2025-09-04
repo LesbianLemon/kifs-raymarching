@@ -41,6 +41,12 @@ fn general_section(ui: &mut Ui, gui_data: &mut GuiData) {
     .on_hover_text("Accuracy of calculations");
     ui.end_row();
 
+    ui.label("Heatmap rendering:")
+        .on_hover_text("Display color via heatmap - brighter spots have higher iteration count");
+    ui.checkbox(&mut gui_data.is_heatmap, "")
+        .on_hover_text("Display color via heatmap - brighter spots have higher iteration count");
+    ui.end_row();
+
     ui.label("Fractal color:");
     ui.color_edit_button_srgb(&mut gui_data.fractal_color);
     ui.end_row();

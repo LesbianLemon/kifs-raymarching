@@ -26,7 +26,7 @@ pub(crate) struct ScreenUniformData {
 #[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct CameraUniformData {
     origin: Vector3Packed<f32>,
-    _padding: [u32; 1],
+    _padding: u32,
     matrix: Vector3Packed<Vector4Packed<f32>>,
 }
 
@@ -40,10 +40,11 @@ pub(crate) struct OptionsUniformData {
     fractal_color: Vector3Packed<f32>,
     _padding2: u32,
     background_color: Vector3Packed<f32>,
+    is_heatmap: u32,
     fractal_group_id: u32,
     primitive_id: u32,
     power: f32,
-    _padding3: [u32; 2],
+    _padding3: u32,
     constant: Vector4Packed<f32>,
 }
 
@@ -134,6 +135,7 @@ pub(crate) struct GuiData {
     pub(crate) epsilon: f32,
     pub(crate) fractal_color: [u8; 3],
     pub(crate) background_color: [u8; 3],
+    pub(crate) is_heatmap: bool,
     pub(crate) fractal_group: FractalGroup,
     pub(crate) primitive_shape: PrimitiveShape,
     pub(crate) power: f32,
@@ -148,6 +150,7 @@ impl Default for GuiData {
             epsilon: 0.0001,
             fractal_color: [200; 3],
             background_color: [0; 3],
+            is_heatmap: false,
             fractal_group: FractalGroup::default(),
             primitive_shape: PrimitiveShape::default(),
             power: 2.,
@@ -163,6 +166,7 @@ pub(crate) struct OptionsData {
     pub(crate) epsilon: f32,
     pub(crate) fractal_color: LinearRgb,
     pub(crate) background_color: LinearRgb,
+    pub(crate) is_heatmap: bool,
     pub(crate) fractal_group: FractalGroup,
     pub(crate) primitive_shape: PrimitiveShape,
     pub(crate) power: f32,
@@ -180,6 +184,7 @@ impl BufferDataDescriptor for OptionsData {
             epsilon: self.epsilon,
             fractal_color: self.fractal_color.into_packed(),
             background_color: self.background_color.into_packed(),
+            is_heatmap: u32::from(self.is_heatmap),
             fractal_group_id: self.fractal_group.id(),
             primitive_id: self.primitive_shape.id(),
             power: self.power,
@@ -205,6 +210,7 @@ impl From<GuiData> for OptionsData {
                 gui_data.background_color[1],
                 gui_data.background_color[2],
             ),
+            is_heatmap: gui_data.is_heatmap,
             fractal_group: gui_data.fractal_group,
             primitive_shape: gui_data.primitive_shape,
             power: gui_data.power,

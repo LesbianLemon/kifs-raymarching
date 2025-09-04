@@ -1,7 +1,7 @@
 # Fractal Ray Marching
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/444b6a4c-6df7-44e2-9993-6014cfc31c6c" />
+  <img width="880" height="663" alt="Image" src="https://github.com/user-attachments/assets/a6b850ec-76e0-4b16-9b7e-da3267c7a912" />
 </p>
 
 ## Opis
